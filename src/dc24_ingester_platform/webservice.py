@@ -7,16 +7,21 @@ Created on Oct 3, 2012
 """
 
 from twisted.web import xmlrpc, server
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ManagementService(xmlrpc.XMLRPC):
     """
     An example object to be published.
     """
-
-    def xmlrpc_echo(self, x):
+    def __init__(self):
+        xmlrpc.XMLRPC.__init__(self, allowNone=True)
+    def xmlrpc_insert(self, x):
         """
         Return all passed args.
         """
+        logger.info(x)
         return x
 
     def xmlrpc_add(self, a, b):

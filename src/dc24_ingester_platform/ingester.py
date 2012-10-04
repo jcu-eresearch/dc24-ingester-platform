@@ -19,5 +19,5 @@ def check_for_ingesters():
 
 def startIngester():
     lc = LoopingCall(check_for_ingesters)
-    lc.start(1, False)
+    lc.start(15, False)
 

@@ -14,12 +14,12 @@ logging.config.fileConfig("logging.conf")
 observer = log.PythonLoggingObserver()
 observer.start()
 
-import dc24_ingester_platform.service
+import dc24_ingester_platform.webservice
 import dc24_ingester_platform.ingester
 
 # attach the service to its parent application
 application = service.Application("DC24 Ingester Platform")
-service = internet.TCPServer(8080, dc24_ingester_platform.service.makeServer())
+service = internet.TCPServer(8080, dc24_ingester_platform.webservice.makeServer())
 service.setServiceParent(application)
 
 dc24_ingester_platform.ingester.startIngester()
