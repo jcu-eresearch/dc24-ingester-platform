@@ -52,7 +52,10 @@ class IngestServiceDB(IIngesterService):
         
         s = sessionmaker(bind=self.engine)()
         try:
-            s.add(ds)
+            if ds.id == None:
+                s.add(ds)
+            else:
+                s.merge(ds)
             s.flush()
             s.commit()
             return obj_to_dict(ds, klass="dataset")
