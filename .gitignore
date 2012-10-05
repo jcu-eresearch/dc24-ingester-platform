@@ -1,0 +1,10 @@
+*.pyc
+*.egg-info
+*.log
+bin
+develop-eggs
+eggs
+lib
+include
+parts
+local

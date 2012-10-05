@@ -111,7 +111,11 @@ class Client(object):
         @return the updated object (eg. @return == ingester_object should always be true on success).
     """
     def update(self, ingester_object):
-        pass
+        if ingester_object.id == None:
+            raise ValueError("The object should have an ID set")
+        # Prepare the object for transmission
+        object_dict = obj_to_dict(ingester_object)
+        return dict_to_obj(self.server.update(object_dict))
 
     """
         Delete an entry using the passed in object, the entry type will be based on the objects type.

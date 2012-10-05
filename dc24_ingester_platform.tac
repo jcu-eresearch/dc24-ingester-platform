@@ -14,14 +14,16 @@ logging.config.fileConfig("logging.conf")
 observer = log.PythonLoggingObserver()
 observer.start()
 
-import dc24_ingester_platform.webservice
-import dc24_ingester_platform.ingester
+from dc24_ingester_platform import webservice
+from dc24_ingester_platform import ingester
+from dc24_ingester_platform import service as platform_service
 
 # attach the service to its parent application
 application = service.Application("DC24 Ingester Platform")
-service = internet.TCPServer(8080, dc24_ingester_platform.webservice.makeServer())
+service_facade = platform_service.makeService("sqlite:///ingester.db", {"db":"sqlite:///repo.db","files":"repo"})
+service = internet.TCPServer(8080, webservice.makeServer(service_facade))
 service.setServiceParent(application)
 
-dc24_ingester_platform.ingester.startIngester()
+ingester.startIngester()
 
 

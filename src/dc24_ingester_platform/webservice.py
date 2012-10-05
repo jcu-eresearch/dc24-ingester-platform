@@ -15,26 +15,38 @@ class ManagementService(xmlrpc.XMLRPC):
     """
     An example object to be published.
     """
-    def __init__(self):
+    def __init__(self, service):
+        """Initialise the management service. 
+        @param service: Service Facade instance being exposed
+        """
         xmlrpc.XMLRPC.__init__(self, allowNone=True)
-    def xmlrpc_insert(self, x):
+        self.service = service
+        
+    def xmlrpc_insert(self, obj):
         """
         Return all passed args.
         """
-        logger.info(x)
-        return x
+        if obj["class"] == "dataset":
+            return self.service.ingester.persistDataset(obj)
+        else:
+            raise xmlrpc.Fault("%s not supported"%(obj["class"]))
 
-    def xmlrpc_add(self, a, b):
+    def xmlrpc_update(self, obj):
         """
-        Return sum of arguments.
+        Return all passed args.
         """
-        return a + b
-
+        if obj["class"] == "dataset":
+            return self.service.ingester.persistDataset(obj)
+        else:
+            raise xmlrpc.Fault("%s not supported"%(obj["class"]))
+        
     def xmlrpc_fault(self):
         """
         Raise a Fault indicating that the procedure should not be used.
         """
         raise xmlrpc.Fault(123, "The fault procedure is faulty.")
 
-def makeServer():
-    return server.Site(ManagementService())
+def makeServer(service):
+    """Construct a management service server using the supplied service facade.
+    """
+    return server.Site(ManagementService(service))
