@@ -12,9 +12,9 @@ import sys
 import xmlrpclib
 import getopt
 
-"""This is a base class to allow easy type checking
-"""
 class BaseManagementObject(object):
+    """This is a base class to allow easy type checking
+    """
     @property
     def id(self):
         return self._id

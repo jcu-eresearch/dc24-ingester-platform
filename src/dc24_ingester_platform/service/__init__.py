@@ -33,6 +33,6 @@ def makeService(db_url, repo_url):
     """
     import ingesterdb
     
-    ingester = ingesterdb.IngestServiceDB(db_url)
+    ingester = ingesterdb.IngesterServiceDB(db_url)
     repo = None
     return ServiceFacade(ingester, repo)

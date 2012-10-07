@@ -41,7 +41,11 @@ class Dataset(Base):
     longitude = Column(DECIMAL)
     
     
-class IngestServiceDB(IIngesterService):
+class IngesterServiceDB(IIngesterService):
+    """This service provides DAO operations for the ingester service.
+    
+    All objects passed in and out of this service are dicts
+    """
     def __init__(self, db_url):
         self.engine = create_engine(db_url)
         Dataset.metadata.create_all(self.engine, checkfirst=True)
