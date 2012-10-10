@@ -8,7 +8,6 @@ setup(name='DC24_Ingester_Platform',
       url='http://www.coastalcoms.com',
       packages=['dc24_ingester_platform'],
       zip_safe=False,
-      install_requires=["Twisted", "sqlalchemy"],
       entry_points={
           "console_scripts": ["mgmt_client = dc24_ingester_platform.client:main"]
       }
