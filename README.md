@@ -27,3 +27,8 @@ c.insert(ds)
 ds2=c.insert(ds)
 ```
 
+### Running as a unit testable service
+
+In order to run service so that it can be integrated with unit tests more easily, there is a special
+implementation of the service that allows all the data to be reset remotely. To use this version start
+the service with the folling command: **./bin/twistd -n -y dc24_ingester_platform_test_service.tac**

@@ -147,6 +147,7 @@ class Client(object):
     def get_ingester_logs(self, dataset_id):
         pass
 
+
 def main():
     """Main entry point. Exposed as a function so that it is compatible with the egg script process"""
     opts, args = getopt.getopt(sys.argv[1:], "s:")

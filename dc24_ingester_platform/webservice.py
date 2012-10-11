@@ -39,6 +39,11 @@ class ManagementService(xmlrpc.XMLRPC):
             return self.service.ingester.persistDataset(obj)
         else:
             raise xmlrpc.Fault("%s not supported"%(obj["class"]))
+    
+    def xmlrpc_ping(self):
+        """A simple connection diagnostic method.
+        """
+        return "PONG"
         
     def xmlrpc_fault(self):
         """
@@ -46,7 +51,21 @@ class ManagementService(xmlrpc.XMLRPC):
         """
         raise xmlrpc.Fault(123, "The fault procedure is faulty.")
 
+class ResettableManagementService(ManagementService):
+    def __init__(self, *args, **kwargs):
+        ManagementService.__init__(self, *args, **kwargs)
+
+    def xmlrpc_reset(self):
+        """Cleans out all data. Used only for testing
+        """
+        logger.info("Resetting data - Not Implemented")
+
 def makeServer(service):
     """Construct a management service server using the supplied service facade.
     """
     return server.Site(ManagementService(service))
+
+def makeResettableServer(service):
+    """Construct a management service server using the supplied service facade.
+    """
+    return server.Site(ResettableManagementService(service))
