@@ -143,8 +143,8 @@ class IngesterServiceDB(IIngesterService):
         
         ds = Dataset()
         schema = dataset["schema"]
-        data_source = dataset["data_source"].copy() if dataset.has_key("data_source") else None
-        sampling = dataset["sampling"].copy() if dataset.has_key("sampling") else None
+        data_source = dataset["data_source"].copy() if dataset.has_key("data_source") and dataset["data_source"] != None else None
+        sampling = dataset["sampling"].copy() if dataset.has_key("sampling") and dataset["sampling"] != None else None
         if dataset.has_key("data_source"): del dataset["data_source"]
         if dataset.has_key("sampling"): del dataset["sampling"]
         if dataset.has_key("schema"): del dataset["schema"]
@@ -185,9 +185,13 @@ class IngesterServiceDB(IIngesterService):
             s.close()
         
     def persistLocation(self, dataset):
-        loc = Location()
-        dict_to_object(dataset, loc)
-        return self.persist(loc)
+        s = orm.sessionmaker(bind=self.engine)()
+        try:
+            loc = Location()
+            dict_to_object(dataset, loc)
+            return self.persist(s, loc)
+        finally:
+            s.close()
         
     def persist(self, s, obj):
         """Persists the object using the provided session. Will rollback
