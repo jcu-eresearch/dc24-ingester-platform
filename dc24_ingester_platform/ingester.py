@@ -14,10 +14,18 @@ from twisted.internet.task import LoopingCall
 
 logger = logging.getLogger("dc24_ingester_platform.ingester")
 
-def check_for_ingesters():
-    logger.info("Ding!")
+class IngesterEngine(object):
+    def __init__(self, service):
+        self.service = service
+        
+    def runIngesters(self):
+        logger.info("Ding - This is where we will process the pending ingester samples")
+        datasets = self.service.ingester.getActiveDatasets()
+        logger.info("Got %s datasets"%(len(datasets)))
 
-def startIngester():
-    lc = LoopingCall(check_for_ingesters)
+def startIngester(service):
+    ingester = IngesterEngine(service)
+    lc = LoopingCall(ingester.runIngesters)
     lc.start(15, False)
+    return ingester
 

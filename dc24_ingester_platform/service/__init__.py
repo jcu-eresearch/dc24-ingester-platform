@@ -23,7 +23,8 @@ class IIngesterService(object):
         raise NotImplementedError()
     def getDataset(self, id=None):
         raise NotImplementedError()
-
+    def getActiveDatasets(self):
+        raise NotImplementedError()
 
 def makeService(db_url, repo_url):
     """Construct a service facade from the provided service URLs

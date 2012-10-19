@@ -24,6 +24,6 @@ service_facade = platform_service.makeService("sqlite:///ingester.db", {"db":"sq
 service = internet.TCPServer(8080, webservice.makeResettableServer(service_facade))
 service.setServiceParent(application)
 
-ingester.startIngester()
+ingester.startIngester(service_facade)
 
 

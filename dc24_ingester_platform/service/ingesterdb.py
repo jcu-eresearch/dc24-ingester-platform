@@ -5,7 +5,7 @@ Created on Oct 5, 2012
 """
 from dc24_ingester_platform.service import IIngesterService
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, DECIMAL, ForeignKey
+from sqlalchemy import Column, Integer, String, DECIMAL, Boolean, ForeignKey
 import sqlalchemy.orm as orm
 from sqlalchemy import create_engine
 from sqlalchemy.orm.exc import NoResultFound
@@ -54,6 +54,7 @@ class Dataset(Base):
     data_source = orm.relationship("DataSource", uselist=False)
     sampling = orm.relationship("Sampling", uselist=False)
     schema = orm.relationship("SchemaEntry")
+    enabled = Column(Boolean, default=True)
 
 class Sampling(Base):
     """A DataSource is a generic data storage class"""
@@ -242,3 +243,34 @@ class IngesterServiceDB(IIngesterService):
         finally:
             s.close()
         
+    def getActiveDatasets(self):
+        """Returns all enabled datasets."""
+        s = orm.sessionmaker(bind=self.engine)()
+        try:
+            objs = s.query(Dataset).filter(Dataset.enabled == True).all()
+            ret_list = []
+            for obj in objs:
+                ret = obj_to_dict(obj)
+                # Retrieve data_source
+                if obj.data_source != None:
+                    data_source = {}
+                    data_source["class"] = str(obj.data_source.kind)
+                    for entry in obj.data_source.parameters:
+                        data_source[str(entry.name)] = str(entry.value)
+                    ret["data_source"] = data_source
+                # Retrieve sampling
+                if obj.sampling != None:
+                    sampling = {}
+                    sampling["class"] = str(obj.sampling.kind)
+                    for entry in obj.sampling.parameters:
+                        sampling[str(entry.name)] = str(entry.value)
+                    ret["sampling"] = sampling
+                ret["schema"] = {}
+                for entry in obj.schema:
+                    ret["schema"][str(entry.name)] = str(entry.kind)
+                ret_list.append(ret)
+            return ret_list
+        except NoResultFound, e:
+            return None
+        finally:
+            s.close()
