@@ -31,4 +31,3 @@ def startIngester(service):
     lc = LoopingCall(ingester.runIngesters)
     lc.start(15, False)
     return ingester
-
