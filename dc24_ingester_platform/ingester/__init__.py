@@ -10,21 +10,54 @@ Created on Oct 3, 2012
 """
 
 import logging
+import datetime
+
 from twisted.internet.task import LoopingCall
+from dc24_ingester_platform.ingester.sampling import create_sampler
 
 logger = logging.getLogger("dc24_ingester_platform.ingester")
 
 class IngesterEngine(object):
     def __init__(self, service):
         self.service = service
+        self._queue = []
         
     def runIngesters(self):
-        logger.info("Ding - This is where we will process the pending ingester samples")
+        now = datetime.datetime.now()
         datasets = self.service.ingester.getActiveDatasets()
         logger.info("Got %s datasets"%(len(datasets)))
         # Verify if the schedule has run
         for dataset in datasets:
-            print dataset
+            if "sampling" not in dataset or dataset["sampling"] == None: continue 
+            self.processDataset(now, dataset)
+
+        self.processQueue()
+
+    def processQueue(self):
+        while len(self._queue) > 0:
+            next = self._queue[0]
+            del self._queue[0]
+            self.service.ingester.logIngesterEvent(next["id"], datetime.datetime.now(), "INFO", "Processing ")
+
+    def processDataset(self, now, dataset):
+        """To process a dataset:
+        1. load the sampler state
+        2. Call the sampler
+        3. If the sampler returns False, save the sampler state and exit
+        4. If it returns True, queue the sample to run
+        """
+        state = self.service.ingester.getSamplerState(dataset["id"])
+        try:
+            sampler = create_sampler(dataset["sampling"], state)
+            self.service.ingester.persistSamplerState(dataset["id"], sampler.state)
+            if sampler.sample(now, dataset):
+                self.queue(dataset)
+        except Exception, e:
+            self.service.ingester.logIngesterEvent(dataset["id"], datetime.datetime.now(), "ERROR", str(e))
+    
+    def queue(self, dataset):
+        """Enqueue the dataset for ingestion ASAP"""
+        self._queue.append(dataset)
 
 def startIngester(service):
     ingester = IngesterEngine(service)

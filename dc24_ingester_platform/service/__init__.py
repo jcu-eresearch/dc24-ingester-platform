@@ -25,6 +25,14 @@ class IIngesterService(object):
         raise NotImplementedError()
     def getActiveDatasets(self):
         raise NotImplementedError()
+    def persisteSamplerState(self, dataset_id, state):
+        raise NotImplementedError()
+    def getSamplerState(self, dataset_id):
+        raise NotImplementedError()
+    def logIngesterEvent(self, dataset_id, timestamp, level, message):
+        raise NotImplementedError()
+    def getIngesterEvents(self, dataset_id):
+        raise NotImplementedError()
 
 def makeService(db_url, repo_url):
     """Construct a service facade from the provided service URLs

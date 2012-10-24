@@ -5,7 +5,7 @@ Created on Oct 5, 2012
 """
 from dc24_ingester_platform.service import IIngesterService
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, DECIMAL, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, DECIMAL, Boolean, ForeignKey, DateTime
 import sqlalchemy.orm as orm
 from sqlalchemy import create_engine
 from sqlalchemy.orm.exc import NoResultFound
@@ -95,6 +95,14 @@ class SchemaEntry(Base):
     kind = Column(String)
     dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
 
+class IngesterLog(Base):
+    __tablename__ = "INGESTER_LOG"
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime)
+    level = Column(String)
+    message = Column(String)
+    dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
+
 def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="value"):
     """This method updates col_orig removing any that aren't in col_new, updating those that are, and adding new ones
     using klass as the constructor
@@ -133,6 +141,8 @@ class IngesterServiceDB(IIngesterService):
         self.engine = create_engine(db_url)
         Location.metadata.create_all(self.engine, checkfirst=True)
         Dataset.metadata.create_all(self.engine, checkfirst=True)
+        
+        self.samplers = {}
 #        Sampling.metadata.create_all(self.engine, checkfirst=True)
 #        SamplingParameter.metadata.create_all(self.engine, checkfirst=True)
 #        DataSource.metadata.create_all(self.engine, checkfirst=True)
@@ -274,3 +284,36 @@ class IngesterServiceDB(IIngesterService):
             return None
         finally:
             s.close()
+
+    def logIngesterEvent(self, dataset_id, timestamp, level, message):
+        s = orm.sessionmaker(bind=self.engine)()
+        try:
+            log = IngesterLog()
+            log.dataset_id = dataset_id
+            log.timestamp = timestamp
+            log.level = level
+            log.message = message
+            s.add(log)
+            s.flush()
+            s.commit()
+        finally:
+            s.close()
+    
+    def getIngesterEvents(self, dataset_id):
+        s = orm.sessionmaker(bind=self.engine)()
+        try:
+            objs = s.query(IngesterLog).filter(IngesterLog.dataset_id == dataset_id).all()
+            ret_list = []
+            for obj in objs:
+                ret_list.append(obj_to_dict(obj))
+            return ret_list
+        finally:
+            s.close()
+            
+    def persistSamplerState(self, id, state):
+        self.samplers[id] = state
+    
+    def getSamplerState(self, id):
+        if id not in self.samplers: return {}
+        return self.samplers[id]
+    
