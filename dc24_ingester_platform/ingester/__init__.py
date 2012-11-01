@@ -11,9 +11,11 @@ Created on Oct 3, 2012
 
 import logging
 import datetime
+import tempfile
 
 from twisted.internet.task import LoopingCall
 from dc24_ingester_platform.ingester.sampling import create_sampler
+from dc24_ingester_platform.ingester.data_sources import create_data_source
 
 logger = logging.getLogger("dc24_ingester_platform.ingester")
 
@@ -29,7 +31,7 @@ class IngesterEngine(object):
         # Verify if the schedule has run
         for dataset in datasets:
             if "sampling" not in dataset or dataset["sampling"] == None: continue 
-            self.processDataset(now, dataset)
+            self.processSampler(now, dataset)
 
         self.processQueue()
 
@@ -37,9 +39,23 @@ class IngesterEngine(object):
         while len(self._queue) > 0:
             next = self._queue[0]
             del self._queue[0]
-            self.service.ingester.logIngesterEvent(next["id"], datetime.datetime.now(), "INFO", "Processing ")
+            print next
+            
+            state = self.service.ingester.getDataSourceState(next["id"])
+            try:
+                data_source = create_data_source(next["data_source"], state)
+                self.service.ingester.logIngesterEvent(next["id"], datetime.datetime.now(), "INFO", "Processing ")
+                cwd = tempfile.mkdtemp()
+                
+                ingest_data = data_source.fetch(cwd)
+                
+                print cwd, ingest_data
+                self.service.ingester.persistDataSourceState(next["id"], data_source.state)
+            except Exception, e:
+                print str(e)
+                self.service.ingester.logIngesterEvent(next["id"], datetime.datetime.now(), "ERROR", str(e))
 
-    def processDataset(self, now, dataset):
+    def processSampler(self, now, dataset):
         """To process a dataset:
         1. load the sampler state
         2. Call the sampler

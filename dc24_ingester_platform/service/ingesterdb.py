@@ -103,6 +103,20 @@ class IngesterLog(Base):
     message = Column(String)
     dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
 
+class SamplerState(Base):
+    __tablename__ = "SAMPLER_STATE"
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    value = Column(String)
+    dataset_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))
+ 
+class DataSourceState(Base):
+    __tablename__ = "DATA_SOURCE_STATE"
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    value = Column(String)
+    dataset_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))   
+    
 def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="value"):
     """This method updates col_orig removing any that aren't in col_new, updating those that are, and adding new ones
     using klass as the constructor
@@ -143,6 +157,7 @@ class IngesterServiceDB(IIngesterService):
         Dataset.metadata.create_all(self.engine, checkfirst=True)
         
         self.samplers = {}
+        self.data_source = {}
 #        Sampling.metadata.create_all(self.engine, checkfirst=True)
 #        SamplingParameter.metadata.create_all(self.engine, checkfirst=True)
 #        DataSource.metadata.create_all(self.engine, checkfirst=True)
@@ -316,4 +331,10 @@ class IngesterServiceDB(IIngesterService):
     def getSamplerState(self, id):
         if id not in self.samplers: return {}
         return self.samplers[id]
+
+    def persistDataSourceState(self, id, state):
+        self.data_source[id] = state
     
+    def getDataSourceState(self, id):
+        if id not in self.data_source: return {}
+        return self.data_source[id]

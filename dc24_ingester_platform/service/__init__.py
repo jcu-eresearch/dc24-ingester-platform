@@ -29,6 +29,10 @@ class IIngesterService(object):
         raise NotImplementedError()
     def getSamplerState(self, dataset_id):
         raise NotImplementedError()
+    def persisteDataSourceState(self, dataset_id, state):
+        raise NotImplementedError()
+    def getDataSourceState(self, dataset_id):
+        raise NotImplementedError()
     def logIngesterEvent(self, dataset_id, timestamp, level, message):
         raise NotImplementedError()
     def getIngesterEvents(self, dataset_id):
