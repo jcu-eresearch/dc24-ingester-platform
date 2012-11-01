@@ -31,10 +31,21 @@ class NoSuchSampler(Exception):
 class PeriodicSampler(Sampler):
     rate = None # The rate of the sampler in s
     def sample(self, sampler_time, dataset):
-        """Run only if the rate worth of seconds has passed since the last run"""
+        """Run only if the rate worth of seconds has passed since the last run
+        >>> import datetime
+        >>> s = PeriodicSampler({}, rate=10)
+        >>> dt = datetime.datetime.now()
+        >>> s.sample(dt, None)
+        True
+        >>> s.sample(dt, None)
+        False
+        >>> dt = dt + datetime.timedelta(seconds=11)
+        >>> s.sample(dt, None)
+        True
+        """
         run = False
         now = time.mktime(sampler_time.utctimetuple())
-        if "last_run" not in self.state or (float(self.state["last_run"]) + self.rate) > now:
+        if "last_run" not in self.state or (float(self.state["last_run"]) + self.rate) < now:
             run = True
         self.state["last_run"] = now
         
