@@ -12,6 +12,8 @@ Created on Oct 3, 2012
 import logging
 import datetime
 import tempfile
+import time
+from dc24_ingester_platform.utils import *
 
 from twisted.internet.task import LoopingCall
 from dc24_ingester_platform.ingester.sampling import create_sampler
@@ -23,8 +25,9 @@ class IngesterEngine(object):
     def __init__(self, service):
         self.service = service
         self._queue = []
+        self._ingest_queue = []
         
-    def runIngesters(self):
+    def processSamplers(self):
         now = datetime.datetime.now()
         datasets = self.service.ingester.getActiveDatasets()
         logger.info("Got %s datasets"%(len(datasets)))
@@ -34,26 +37,6 @@ class IngesterEngine(object):
             self.processSampler(now, dataset)
 
         self.processQueue()
-
-    def processQueue(self):
-        while len(self._queue) > 0:
-            next = self._queue[0]
-            del self._queue[0]
-            print next
-            
-            state = self.service.ingester.getDataSourceState(next["id"])
-            try:
-                data_source = create_data_source(next["data_source"], state)
-                self.service.ingester.logIngesterEvent(next["id"], datetime.datetime.now(), "INFO", "Processing ")
-                cwd = tempfile.mkdtemp()
-                
-                ingest_data = data_source.fetch(cwd)
-                
-                print cwd, ingest_data
-                self.service.ingester.persistDataSourceState(next["id"], data_source.state)
-            except Exception, e:
-                print str(e)
-                self.service.ingester.logIngesterEvent(next["id"], datetime.datetime.now(), "ERROR", str(e))
 
     def processSampler(self, now, dataset):
         """To process a dataset:
@@ -70,13 +53,48 @@ class IngesterEngine(object):
                 self.queue(dataset)
         except Exception, e:
             self.service.ingester.logIngesterEvent(dataset["id"], datetime.datetime.now(), "ERROR", str(e))
-    
+  
+    def processQueue(self):
+        while len(self._queue) > 0:
+            dataset = self._queue[0]
+            del self._queue[0]
+            
+            state = self.service.ingester.getDataSourceState(dataset["id"])
+            try:
+                data_source = create_data_source(dataset["data_source"], state)
+                self.service.ingester.logIngesterEvent(dataset["id"], datetime.datetime.now(), "INFO", "Processing ")
+                cwd = tempfile.mkdtemp()
+                
+                ingest_data = data_source.fetch(cwd)
+                
+                self.queueIngest(dataset, ingest_data, cwd)
+                self.service.ingester.persistDataSourceState(dataset["id"], data_source.state)
+            except Exception, e:
+                print str(e)
+                self.service.ingester.logIngesterEvent(dataset["id"], datetime.datetime.now(), "ERROR", str(e))
+  
+    def processIngestQueue(self):
+        if len(self._ingest_queue) == 0: return
+        dataset, obs, cwd = self._ingest_queue[0]
+        del self._ingest_queue[0]
+        
+        timestamp = parse_timestamp(obs["time"])
+        del obs["time"]
+        self.service.repository.persistObservation(dataset, timestamp, obs, cwd)
+  
     def queue(self, dataset):
         """Enqueue the dataset for ingestion ASAP"""
         self._queue.append(dataset)
 
+    def queueIngest(self, dataset, ingest_data, cwd):
+        self._ingest_queue.append((dataset, ingest_data, cwd))
+
 def startIngester(service):
     ingester = IngesterEngine(service)
-    lc = LoopingCall(ingester.runIngesters)
+    lc = LoopingCall(ingester.processSamplers)
     lc.start(15, False)
+    
+    lc = LoopingCall(ingester.processIngestQueue)
+    lc.start(15, False)
+    
     return ingester

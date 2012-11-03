@@ -4,21 +4,13 @@ Created on Nov 1, 2012
 @author: nigel
 """
 import os
-import sys
 import datetime
-import email.utils as eut
 import shutil
 import logging
 import urllib2
+from dc24_ingester_platform.utils import *
 
 logger = logging.getLogger("dc24_ingester_platform.ingester.data_sources")
-
-def format_timestamp(in_date):
-    if type(in_date) == str:
-        in_date = datetime.datetime(*eut.parsedate(in_date)[:6])
-    r = in_date.strftime("%Y-%m-%dT%H:%M:%S.%f")
-    r = r[0:r.find(".")+4] + 'Z'
-    return r
 
 class DataSource(object):
     """A Sampler is an object that takes a configuration and state

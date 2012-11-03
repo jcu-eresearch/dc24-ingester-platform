@@ -11,8 +11,8 @@ class ServiceFacade(object):
 class IRepositoryService(object):
     """Interface for data management service
     """
-    pass
-
+    def persistObservation(self, dataset, time, obs, cwd):
+        raise NotImplementedError()
 
 class IIngesterService(object):
     """Interface for ingester service
@@ -45,7 +45,8 @@ def makeService(db_url, repo_url):
     then construct a simple local repository
     """
     import ingesterdb
+    import repodb
     
     ingester = ingesterdb.IngesterServiceDB(db_url)
-    repo = None
+    repo = repodb.RepositoryDB(repo_url)
     return ServiceFacade(ingester, repo)
