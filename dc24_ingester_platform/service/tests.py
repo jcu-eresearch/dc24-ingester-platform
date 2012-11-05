@@ -12,14 +12,21 @@ class TestServiceModels(unittest.TestCase):
         del self.service
         
     def test_data_types(self):
-        dataset = {"latitude":30, "longitude": 20, "schema": {"file":"file"}, "data_source":{"class":"test", "param1":"1", "param2":"2"}, "sampling":{"class":"schedule1", "param1":"1", "param2":"2"}}
-        dataset2 = self.service.persistDataset(dataset)
+        dataset = {"class":"dataset", "schema": {"file":"file"}, "data_source":{"class":"test", "param1":"1", "param2":"2"}, "sampling":{"class":"schedule1", "param1":"1", "param2":"2"}}
+        dataset2 = self.service.persist(dataset)
         
-        self.assertEquals(dataset["latitude"], dataset2["latitude"])
-        self.assertEquals(dataset["longitude"], dataset2["longitude"])
         self.assertEquals(dataset["data_source"], dataset2["data_source"])
         self.assertEquals(dataset["sampling"], dataset2["sampling"])
         self.assertEquals(dataset["schema"], dataset2["schema"])
+        
+    def test_unit(self):
+        unit = {"insert":[{"id":-2, "class":"dataset", "location":-1, "schema": {"file":"file"}, "data_source":{"class":"test", "param1":"1", "param2":"2"}, "sampling":{"class":"schedule1", "param1":"1", "param2":"2"}}, {"id":-1, "latitude":30, "longitude": 20, "class":"location"}], "delete":[], "update":[]}
+        unit2 = self.service.commit(unit)
+        for obj in unit2:
+            if obj["class"] == "location":
+                self.assertEquals(obj["correlationid"], -1)
+            elif obj["class"] == "dataset":
+                self.assertEquals(obj["correlationid"], -2)
 
 if __name__ == '__main__':
     unittest.main()

@@ -26,14 +26,13 @@ class ManagementService(xmlrpc.XMLRPC):
         """
         Return all passed args.
         """
-        klass = obj["class"]
-        del obj["class"]
-        if klass == "dataset":
-            return self.service.ingester.persistDataset(obj)
-        elif klass == "location":
-            return self.service.ingester.persistLocation(obj)
-        else:
-            raise xmlrpc.Fault(1, "%s not supported"%(obj["class"]))
+        return self.service.ingester.persist(obj)
+
+    def xmlrpc_commit(self, unit):
+        try:
+            return self.service.ingester.commit(unit)
+        except ValueError, e:
+            raise xmlrpc.Fault(1, str(e))
 
     def xmlrpc_update(self, obj):
         """

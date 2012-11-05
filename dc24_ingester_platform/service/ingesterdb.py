@@ -48,8 +48,6 @@ class Dataset(Base):
     __tablename__ = "DATASETS"
     __xmlrpc_class__ = "dataset"
     id = Column(Integer, primary_key=True)
-    latitude = Column(DECIMAL)
-    longitude = Column(DECIMAL)
     location = Column(Integer, ForeignKey('LOCATIONS.id'))
     data_source = orm.relationship("DataSource", uselist=False)
     sampling = orm.relationship("Sampling", uselist=False)
@@ -158,13 +156,55 @@ class IngesterServiceDB(IIngesterService):
         
         self.samplers = {}
         self.data_source = {}
-#        Sampling.metadata.create_all(self.engine, checkfirst=True)
-#        SamplingParameter.metadata.create_all(self.engine, checkfirst=True)
-#        DataSource.metadata.create_all(self.engine, checkfirst=True)
-#        DataSourceParameter.metadata.create_all(self.engine, checkfirst=True)
-    
-    def persistDataset(self, dataset):
+
+    def commit(self, unit):
         s = orm.sessionmaker(bind=self.engine)()
+        ret = []
+        locs = {}
+        datasets = {}
+        try:
+            # delete first
+            # now sort to find objects by order of dependency (location then dataset)
+            for obj in [o for o in unit["insert"] if o["class"] == "location"]:
+                id = obj["id"]
+                del obj["id"]
+                obj = self.persistLocation(obj, s)
+                locs[id] = obj["id"]
+                obj["correlationid"] = id
+                ret.append(obj)
+    
+            for obj in [o for o in unit["insert"] if o["class"] == "dataset"]:
+                id = obj["id"]
+                del obj["id"]
+                if obj["location"] < 0: obj["location"] = locs[obj["location"]]
+                obj = self.persistDataset(obj, s)
+                datasets[id] = obj["id"]
+                obj["correlationid"] = id
+                ret.append(obj)
+            s.commit()
+            return ret
+        finally:
+            s.close()
+
+    def persist(self, obj):
+        s = orm.sessionmaker(bind=self.engine)()
+        klass = obj["class"]
+        del obj["class"]
+        try:
+            if klass == "dataset":
+                obj = self.persistDataset(obj, s)
+                s.commit()
+                return obj
+            elif klass == "location":
+                obj = self.persistLocation(obj, s)
+                s.commit()
+                return obj
+            else:
+                raise ValueError("%s not supported"%(obj["class"]))
+        finally:
+            s.close()
+
+    def persistDataset(self, dataset, s):
         dataset = dataset.copy() # Make a copy so we can remove keys we don't want
         
         ds = Dataset()
@@ -175,51 +215,44 @@ class IngesterServiceDB(IIngesterService):
         if dataset.has_key("sampling"): del dataset["sampling"]
         if dataset.has_key("schema"): del dataset["schema"]
         
-        try:
-            if dataset.has_key("id") and dataset["id"] != None:
-                ds = obj_to_dict(s.query(Dataset).filter(Dataset.id == dataset["id"]).one())
-            dict_to_object(dataset, ds)
-            # Clean up the sampling link
-            if ds.data_source == None and data_source != None:
-                ds.data_source = DataSource()
-            elif ds.data_source != None and data_source == None:
-                del ds.data_source
-            # If the sampling object actually exists then populate it
-            if ds.data_source != None:
-                ds.data_source.kind = data_source["class"]
-                del data_source["class"]
-                merge_parameters(ds.data_source.parameters, data_source, DataSourceParameter)
-            
-            # Clean up the sampling link
-            if ds.sampling == None and sampling != None:
-                ds.sampling = Sampling()
-            elif ds.sampling != None and sampling == None:
-                del ds.sampling
-            # If the sampling object actually exists then populate it
-            if ds.sampling != None:
-                ds.sampling.kind = sampling["class"]
-                del sampling["class"]
-                merge_parameters(ds.sampling.parameters, sampling, SamplingParameter)
-            
-            # If the sampling object actually exists then populate it
-            if ds.schema != None:
-                merge_parameters(ds.schema, schema, SchemaEntry, value_attr="kind")
-            
-            self.persist(s, ds)
-            return self.getDataset(ds.id)
-        finally:
-            s.close()
+        if dataset.has_key("id") and dataset["id"] != None:
+            ds = obj_to_dict(s.query(Dataset).filter(Dataset.id == dataset["id"]).one())
+        dict_to_object(dataset, ds)
+        # Clean up the sampling link
+        if ds.data_source == None and data_source != None:
+            ds.data_source = DataSource()
+        elif ds.data_source != None and data_source == None:
+            del ds.data_source
+        # If the sampling object actually exists then populate it
+        if ds.data_source != None:
+            ds.data_source.kind = data_source["class"]
+            del data_source["class"]
+            merge_parameters(ds.data_source.parameters, data_source, DataSourceParameter)
         
-    def persistLocation(self, dataset):
-        s = orm.sessionmaker(bind=self.engine)()
-        try:
-            loc = Location()
-            dict_to_object(dataset, loc)
-            return self.persist(s, loc)
-        finally:
-            s.close()
+        # Clean up the sampling link
+        if ds.sampling == None and sampling != None:
+            ds.sampling = Sampling()
+        elif ds.sampling != None and sampling == None:
+            del ds.sampling
+        # If the sampling object actually exists then populate it
+        if ds.sampling != None:
+            ds.sampling.kind = sampling["class"]
+            del sampling["class"]
+            merge_parameters(ds.sampling.parameters, sampling, SamplingParameter)
         
-    def persist(self, s, obj):
+        # If the sampling object actually exists then populate it
+        if ds.schema != None:
+            merge_parameters(ds.schema, schema, SchemaEntry, value_attr="kind")
+        
+        self._persist(s, ds)
+        return self.getDataset(ds.id)
+        
+    def persistLocation(self, dataset, s):
+        loc = Location()
+        dict_to_object(dataset, loc)
+        return self._persist(s, loc)
+        
+    def _persist(self, s, obj):
         """Persists the object using the provided session. Will rollback
         but will not close the session
         """
@@ -229,7 +262,6 @@ class IngesterServiceDB(IIngesterService):
             else:
                 s.merge(obj)
             s.flush()
-            s.commit()
             return obj_to_dict(obj)
         except Exception, e:
             logger.error("Error saving: " + str(e))
