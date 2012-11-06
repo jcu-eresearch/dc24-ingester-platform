@@ -34,6 +34,18 @@ class ManagementService(xmlrpc.XMLRPC):
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
 
+    def xmlrpc_getLocation(self, loc_id):
+        try:
+            return self.service.ingester.getLocation(loc_id)
+        except ValueError, e:
+            raise xmlrpc.Fault(1, str(e))
+
+    def xmlrpc_getDataset(self, ds_id):
+        try:
+            return self.service.ingester.getDataset(ds_id)
+        except ValueError, e:
+            raise xmlrpc.Fault(1, str(e))
+
     def xmlrpc_update(self, obj):
         """
         Return all passed args.

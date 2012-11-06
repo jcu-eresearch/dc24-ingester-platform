@@ -13,11 +13,13 @@ class TestServiceModels(unittest.TestCase):
         
     def test_data_types(self):
         dataset = {"class":"dataset", "schema": {"file":"file"}, "data_source":{"class":"test", "param1":"1", "param2":"2"}, "sampling":{"class":"schedule1", "param1":"1", "param2":"2"}}
-        dataset2 = self.service.persist(dataset)
+        dataset1a = self.service.persist(dataset)
         
-        self.assertEquals(dataset["data_source"], dataset2["data_source"])
-        self.assertEquals(dataset["sampling"], dataset2["sampling"])
-        self.assertEquals(dataset["schema"], dataset2["schema"])
+        self.assertEquals(dataset["data_source"], dataset1a["data_source"])
+        self.assertEquals(dataset["sampling"], dataset1a["sampling"])
+        self.assertEquals(dataset["schema"], dataset1a["schema"])
+        dataset1b = self.service.getDataset(dataset1a["id"])
+        self.assertEquals(dataset1a, dataset1b)
         
     def test_unit(self):
         unit = {"insert":[{"id":-2, "class":"dataset", "location":-1, "schema": {"file":"file"}, "data_source":{"class":"test", "param1":"1", "param2":"2"}, "sampling":{"class":"schedule1", "param1":"1", "param2":"2"}}, {"id":-1, "latitude":30, "longitude": 20, "class":"location"}], "delete":[], "update":[]}
