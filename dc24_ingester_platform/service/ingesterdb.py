@@ -22,7 +22,7 @@ def obj_to_dict(obj, klass=None):
     ret = {}
     for attr in dir(obj):
         if attr.startswith("_") or attr == "metadata": continue
-        if type(getattr(obj, attr)) in (str, int, float, unicode, dict):
+        if type(getattr(obj, attr)) in (str, int, float, unicode, dict, bool, type(None)):
             ret[attr] = getattr(obj, attr)
         elif type(getattr(obj, attr)) == decimal.Decimal:
             ret[attr] = float(getattr(obj, attr))
@@ -245,37 +245,44 @@ class IngesterServiceDB(IIngesterService):
             merge_parameters(ds.schema, schema, SchemaEntry, value_attr="kind")
         
         self._persist(s, ds)
-        return self.getDataset(ds.id)
+        return self._getDataset(ds.id, s)
         
-    def persistLocation(self, dataset, s):
+    def persistLocation(self, location, s):
         loc = Location()
-        dict_to_object(dataset, loc)
+        dict_to_object(location, loc)
         return self._persist(s, loc)
         
-    def _persist(self, s, obj):
+    def _persist(self, session, obj):
         """Persists the object using the provided session. Will rollback
         but will not close the session
         """
         try:
             if obj.id == None:
-                s.add(obj)
+                session.add(obj)
             else:
-                s.merge(obj)
-            s.flush()
+                session.merge(obj)
+            session.flush()
             return obj_to_dict(obj)
         except Exception, e:
             logger.error("Error saving: " + str(e))
-            s.rollback()
+            session.rollback()
             raise Exception("Could not save dataset")
             
     def deleteDataset(self, dataset):
         pass
     
-    def getDataset(self, id=None):
+    def getDataset(self, ds_id):
         """Get the dataset as a DTO"""
         s = orm.sessionmaker(bind=self.engine)()
         try:
-            obj = s.query(Dataset).filter(Dataset.id == id).one()
+            return self._getDataset(ds_id, s)
+        finally:
+            s.close()
+        
+    def _getDataset(self, ds_id, session):
+        """Get the dataset as a DTO"""
+        try:
+            obj = session.query(Dataset).filter(Dataset.id == ds_id).one()
             ret = obj_to_dict(obj)
             # Retrieve data_source
             if obj.data_source != None:
@@ -297,8 +304,28 @@ class IngesterServiceDB(IIngesterService):
             return ret
         except NoResultFound, e:
             return None
+        
+    def enableDataset(self, ds_id):
+        """Enable the dataset"""
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            obj = session.query(Dataset).filter(Dataset.id == ds_id).one()
+            obj.enabled = True
+            session.merge(obj)
+            session.commit()
         finally:
-            s.close()
+            session.close()
+    
+    def disableDataset(self, ds_id):
+        """Disable the dataset"""
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            obj = session.query(Dataset).filter(Dataset.id == ds_id).one()
+            obj.enabled = False
+            session.merge(obj)
+            session.commit()
+        finally:
+            session.close()
         
     def getActiveDatasets(self):
         """Returns all enabled datasets."""

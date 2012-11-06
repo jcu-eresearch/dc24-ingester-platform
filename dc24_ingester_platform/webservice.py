@@ -26,7 +26,10 @@ class ManagementService(xmlrpc.XMLRPC):
         """
         Return all passed args.
         """
-        return self.service.ingester.persist(obj)
+        try:
+            return self.service.ingester.persist(obj)
+        except ValueError, e:
+            raise xmlrpc.Fault(1, str(e))
 
     def xmlrpc_commit(self, unit):
         try:
@@ -46,6 +49,18 @@ class ManagementService(xmlrpc.XMLRPC):
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
 
+    def xmlrpc_enableDataset(self, ds_id):
+        try:
+            return self.service.ingester.enableDataset(ds_id)
+        except ValueError, e:
+            raise xmlrpc.Fault(1, str(e))
+
+    def xmlrpc_disableDataset(self, ds_id):
+        try:
+            return self.service.ingester.disableDataset(ds_id)
+        except ValueError, e:
+            raise xmlrpc.Fault(1, str(e))
+        
     def xmlrpc_update(self, obj):
         """
         Return all passed args.
