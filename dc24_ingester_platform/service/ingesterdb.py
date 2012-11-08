@@ -273,8 +273,6 @@ class IngesterServiceDB(IIngesterService):
         sampling = dataset["sampling"].copy() if dataset.has_key("sampling") and dataset["sampling"] != None else None
         if dataset.has_key("data_source"): del dataset["data_source"]
         if dataset.has_key("sampling"): del dataset["sampling"]
-        if dataset.has_key("schema"): del dataset["schema"]
-        
         if dataset.has_key("id") and dataset["id"] != None:
             ds = obj_to_dict(session.query(Dataset).filter(Dataset.id == dataset["id"]).one())
         dict_to_object(dataset, ds)
@@ -424,9 +422,6 @@ class IngesterServiceDB(IIngesterService):
                     for entry in obj.sampling.parameters:
                         sampling[str(entry.name)] = str(entry.value)
                     ret["sampling"] = sampling
-                ret["schema"] = {}
-                for entry in obj.schema:
-                    ret["schema"][str(entry.name)] = str(entry.kind)
                 ret_list.append(ret)
             return ret_list
         except NoResultFound, e:
