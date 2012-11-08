@@ -14,13 +14,23 @@ class TestServiceModels(unittest.TestCase):
     def test_data_types(self):
         schema1 = {"class":"dataset_metadata_schema", "attributes": {"file":"file"}}
         schema1a = self.service.persist(schema1)
+        schema2 = {"class":"data_entry_schema", "attributes": {"file":"file"}}
+        schema2a = self.service.persist(schema2)
+
         dataset = {"class":"dataset", "schema": schema1a["id"], "data_source":{"class":"test", "param1":"1", "param2":"2"}, "sampling":{"class":"schedule1", "param1":"1", "param2":"2"}}
+        # We've trying to use a dataset_metadata schema, so this should fail
+        self.assertRaises(ValueError, self.service.persist, dataset)
+        dataset["schema"] = schema2a["id"]
+        # Now we're using the correct type of schema
         dataset1a = self.service.persist(dataset)
         
         self.assertEquals(dataset["data_source"], dataset1a["data_source"])
         self.assertEquals(dataset["sampling"], dataset1a["sampling"])
         dataset1b = self.service.getDataset(dataset1a["id"])
         self.assertEquals(dataset1a, dataset1b)
+        
+        schema1b = self.service.getSchema(schema1a["id"])
+        self.assertEquals(schema1a, schema1b)
         
     def test_unit(self):
         unit = {"insert":[{"id":-2, "class":"dataset", "location":-1, "schema": -3, "data_source":{"class":"test", "param1":"1", "param2":"2"}, "sampling":{"class":"schedule1", "param1":"1", "param2":"2"}}, {"id":-1, "latitude":30, "longitude": 20, "class":"location"}, {"id":-3, "attributes":{"file":"file"}, "class":"data_entry_schema"}], "delete":[], "update":[]}

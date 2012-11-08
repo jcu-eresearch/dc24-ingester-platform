@@ -28,6 +28,9 @@ def obj_to_dict(obj, klass=None):
             ret[attr] = float(getattr(obj, attr))
     if klass != None: ret["class"] = klass
     elif hasattr(obj, "__xmlrpc_class__"): ret["class"] = obj.__xmlrpc_class__
+    if ret["class"] == "schema":
+        ret["class"] = ret["for_"] + "_schema"
+        del ret["for_"]
     return ret
 
 def dict_to_object(dic, obj):
@@ -88,6 +91,7 @@ class DataSourceParameter(Base):
 
 class Schema(Base):
     __tablename__ = "SCHEMA"
+    __xmlrpc_class__ = "schema"
     id = Column(Integer, primary_key=True)
     name = Column(String)
     for_ = Column(String, name="for")
@@ -162,6 +166,22 @@ def method(verb, cls):
         return fn
     return _method
 
+def ingest_order(x, y):
+    """Sort objects by class according to the order which will make an insert transaction work.
+    """
+    order = ["_schema", "region", "location", "dataset"]
+    x_i = len(order)
+    y_i = len(order)
+    for i in range(len(order)): 
+        if x["class"].endswith(order[i]): 
+            x_i = i
+            break
+    for i in range(len(order)): 
+        if y["class"].endswith(order[i]): 
+            y_i = i
+            break
+    return cmp(x_i, y_i)
+    
 class IngesterServiceDB(IIngesterService):
     """This service provides DAO operations for the ingester service.
     
@@ -174,6 +194,13 @@ class IngesterServiceDB(IIngesterService):
         self.samplers = {}
         self.data_source = {}
 
+    def findMethod(self, verb, cls):
+        for fn in dir(self):
+            fn = getattr(self, fn)
+            if hasattr(fn, "verb") and hasattr(fn, "cls") and fn.verb == verb and fn.cls == cls:
+                return fn
+        return None
+
     def reset(self):
         Location.metadata.drop_all(self.engine)
         Location.metadata.create_all(self.engine, checkfirst=True)
@@ -182,24 +209,29 @@ class IngesterServiceDB(IIngesterService):
         s = orm.sessionmaker(bind=self.engine)()
         ret = []
         locs = {}
+        schemas = {}
         datasets = {}
         try:
+            unit["insert"].sort(ingest_order)
+            unit["update"].sort(ingest_order)
             # delete first
             # now sort to find objects by order of dependency (location then dataset)
-            for obj in [o for o in unit["insert"] if o["class"] == "location"]:
+            for obj in unit["insert"]:
                 id = obj["id"]
+                cls = obj["class"]
                 del obj["id"]
-                obj = self.persistLocation(obj, s)
-                locs[id] = obj["id"]
-                obj["correlationid"] = id
-                ret.append(obj)
-    
-            for obj in [o for o in unit["insert"] if o["class"] == "dataset"]:
-                id = obj["id"]
-                del obj["id"]
-                if obj["location"] < 0: obj["location"] = locs[obj["location"]]
-                obj = self.persistDataset(obj, s)
-                datasets[id] = obj["id"]
+                if obj["class"] == "dataset":
+                    if obj["location"] < 0: obj["location"] = locs[obj["location"]]
+                    if obj["schema"] < 0: obj["schema"] = schemas[obj["schema"]]
+                fn = self.findMethod("persist", cls)
+                if fn == None:
+                    raise ValueError("Could not find method for", "persist", cls)
+                obj = fn(obj, s)
+                if cls == "location":
+                    locs[id] = obj["id"]
+                elif cls.endswith("schema"):
+                    schemas[id] = obj["id"]
+                        
                 obj["correlationid"] = id
                 ret.append(obj)
             s.commit()
@@ -208,26 +240,35 @@ class IngesterServiceDB(IIngesterService):
             s.close()
 
     def persist(self, obj):
+        obj = obj.copy()
+        
         cls = obj["class"]
         del obj["class"]
-        for fn in dir(self):
-            fn = getattr(self, fn)
-            if hasattr(fn, "verb") and hasattr(fn, "cls") and fn.verb == "persist" and fn.cls == cls:
-                s = orm.sessionmaker(bind=self.engine)()
-                try:
-                    obj = fn(obj, s)
-                    s.commit()
-                    return obj
-                finally:
-                    s.close()
+        fn = self.findMethod("persist", cls)
+        if fn != None:
+            s = orm.sessionmaker(bind=self.engine)()
+            try:
+                obj = fn(obj, s)
+                s.commit()
+                return obj
+            finally:
+                s.close()
         raise ValueError("%s not supported"%(cls))
 
     @method("persist", "dataset")
-    def persistDataset(self, dataset, s):
-        dataset = dataset.copy() # Make a copy so we can remove keys we don't want
+    def persistDataset(self, dataset, session):
+        """Assumes that we have a copy of the object, so we can change it if required.
+        """
+        
+        # Check schema is of the correct type
+        try:
+            schema = session.query(Schema).filter(Schema.id == dataset["schema"]).one()
+        except NoResultFound, e:
+            raise ValueError("Provided schema not found")
+        if schema.for_ != "data_entry":
+            raise ValueError("The schema must be for a data_entry")
         
         ds = Dataset()
-        schema = dataset["schema"]
         data_source = dataset["data_source"].copy() if dataset.has_key("data_source") and dataset["data_source"] != None else None
         sampling = dataset["sampling"].copy() if dataset.has_key("sampling") and dataset["sampling"] != None else None
         if dataset.has_key("data_source"): del dataset["data_source"]
@@ -235,7 +276,7 @@ class IngesterServiceDB(IIngesterService):
         if dataset.has_key("schema"): del dataset["schema"]
         
         if dataset.has_key("id") and dataset["id"] != None:
-            ds = obj_to_dict(s.query(Dataset).filter(Dataset.id == dataset["id"]).one())
+            ds = obj_to_dict(session.query(Dataset).filter(Dataset.id == dataset["id"]).one())
         dict_to_object(dataset, ds)
         # Clean up the sampling link
         if ds.data_source == None and data_source != None:
@@ -259,12 +300,9 @@ class IngesterServiceDB(IIngesterService):
             del sampling["class"]
             merge_parameters(ds.sampling.parameters, sampling, SamplingParameter)
         
-        # If the sampling object actually exists then populate it
-        if ds.schema != None:
-            merge_parameters(ds.schema, schema, SchemaEntry, value_attr="kind")
         
-        self._persist(ds, s)
-        return self._getDataset(ds.id, s)
+        self._persist(ds, session)
+        return self._getDataset(ds.id, session)
     
     @method("persist", "location")    
     def persistLocation(self, location, s):
@@ -392,9 +430,28 @@ class IngesterServiceDB(IIngesterService):
                 ret_list.append(ret)
             return ret_list
         except NoResultFound, e:
-            return None
+            return []
         finally:
             s.close()
+    
+    def getSchema(self, s_id):
+        """Get the schema as a DTO"""
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            obj = session.query(Schema).filter(Schema.id == s_id).one()
+            obj = obj_to_dict(obj)
+            return obj
+        finally:
+            session.close()
+            
+    def getLocation(self, loc_id):
+        """Get the location as a DTO"""
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            obj = session.query(Location).filter(Location.id == loc_id).one()
+            return obj_to_dict(obj)
+        finally:
+            session.close()
 
     def logIngesterEvent(self, dataset_id, timestamp, level, message):
         s = orm.sessionmaker(bind=self.engine)()
