@@ -51,7 +51,7 @@ class Dataset(Base):
     location = Column(Integer, ForeignKey('LOCATIONS.id'))
     data_source = orm.relationship("DataSource", uselist=False)
     sampling = orm.relationship("Sampling", uselist=False)
-    schema = orm.relationship("SchemaEntry")
+    schema = Column(Integer, ForeignKey('SCHEMA.id'))
     enabled = Column(Boolean, default=True)
 
 class Sampling(Base):
@@ -85,13 +85,20 @@ class DataSourceParameter(Base):
     name = Column(String)
     value = Column(String)
     dataset_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))
-    
-class SchemaEntry(Base):
+
+class Schema(Base):
     __tablename__ = "SCHEMA"
     id = Column(Integer, primary_key=True)
     name = Column(String)
+    for_ = Column(String, name="for")
+    attributes = orm.relationship("SchemaAttribute")
+    
+class SchemaAttribute(Base):
+    __tablename__ = "SCHEMA_ATTRIBUTE"
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
     kind = Column(String)
-    dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
+    schema_id = Column(Integer, ForeignKey("SCHEMA.id"))
 
 class IngesterLog(Base):
     __tablename__ = "INGESTER_LOG"
@@ -143,6 +150,17 @@ def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="val
         setattr(obj, value_attr, working[k])
         col_orig.append(obj)
         
+def method(verb, cls):
+    """Annotation for identifying which class methods are responsible
+    for different actions and classes
+    :param verb: Action (persist, get, delete)
+    :param cls: The serialised class name string
+    """ 
+    def _method(fn):
+        fn.verb = verb
+        fn.cls = cls
+        return fn
+    return _method
 
 class IngesterServiceDB(IIngesterService):
     """This service provides DAO operations for the ingester service.
@@ -190,23 +208,21 @@ class IngesterServiceDB(IIngesterService):
             s.close()
 
     def persist(self, obj):
-        s = orm.sessionmaker(bind=self.engine)()
-        klass = obj["class"]
+        cls = obj["class"]
         del obj["class"]
-        try:
-            if klass == "dataset":
-                obj = self.persistDataset(obj, s)
-                s.commit()
-                return obj
-            elif klass == "location":
-                obj = self.persistLocation(obj, s)
-                s.commit()
-                return obj
-            else:
-                raise ValueError("%s not supported"%(klass))
-        finally:
-            s.close()
+        for fn in dir(self):
+            fn = getattr(self, fn)
+            if hasattr(fn, "verb") and hasattr(fn, "cls") and fn.verb == "persist" and fn.cls == cls:
+                s = orm.sessionmaker(bind=self.engine)()
+                try:
+                    obj = fn(obj, s)
+                    s.commit()
+                    return obj
+                finally:
+                    s.close()
+        raise ValueError("%s not supported"%(cls))
 
+    @method("persist", "dataset")
     def persistDataset(self, dataset, s):
         dataset = dataset.copy() # Make a copy so we can remove keys we don't want
         
@@ -247,15 +263,35 @@ class IngesterServiceDB(IIngesterService):
         if ds.schema != None:
             merge_parameters(ds.schema, schema, SchemaEntry, value_attr="kind")
         
-        self._persist(s, ds)
+        self._persist(ds, s)
         return self._getDataset(ds.id, s)
-        
+    
+    @method("persist", "location")    
     def persistLocation(self, location, s):
         loc = Location()
         dict_to_object(location, loc)
-        return self._persist(s, loc)
+        return self._persist(loc, s)
+    
+    @method("persist", "dataset_metadata_schema")    
+    def persistDatasetMetaDataSchema(self, schema, s):
+        return self._persistSchema(schema, "dataset_metadata", s)
+
+    @method("persist", "data_entry_schema")    
+    def persistDataEntrySchema(self, schema, s):
+        return self._persistSchema(schema, "data_entry", s)
         
-    def _persist(self, session, obj):
+    def _persistSchema(self, schema, for_, s):
+        schema = schema.copy()
+        attrs = schema["attributes"]
+        del schema["attributes"]
+        schema_ = Schema()
+        dict_to_object(schema, schema_)
+        merge_parameters(schema_.attributes, attrs, SchemaAttribute, value_attr="kind")
+        
+        schema_.for_ = for_
+        return self._persist(schema_, s)
+        
+    def _persist(self, obj, session):
         """Persists the object using the provided session. Will rollback
         but will not close the session
         """
@@ -302,9 +338,6 @@ class IngesterServiceDB(IIngesterService):
                 for entry in obj.sampling.parameters:
                     sampling[str(entry.name)] = str(entry.value)
                 ret["sampling"] = sampling
-            ret["schema"] = {}
-            for entry in obj.schema:
-                ret["schema"][str(entry.name)] = str(entry.kind)
             return ret
         except NoResultFound, e:
             return None

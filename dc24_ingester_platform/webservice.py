@@ -17,59 +17,68 @@ class ManagementService(xmlrpc.XMLRPC):
     """
     def __init__(self, service):
         """Initialise the management service. 
-        @param service: Service Facade instance being exposed
+        :param service: Service Facade instance being exposed by this XMLRPX service
         """
         xmlrpc.XMLRPC.__init__(self, allowNone=True)
         self.service = service
         
     def xmlrpc_insert(self, obj):
-        """
-        Return all passed args.
+        """ Insert the passed object into the ingester platform
         """
         try:
             return self.service.ingester.persist(obj)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
+        
+    def xmlrpc_update(self, obj):
+        """Store the passed object.
+        """
+        try:
+            return self.service.ingester.persist(obj)
+        except ValueError, e:
+            raise xmlrpc.Fault(1, str(e))
+    
 
     def xmlrpc_commit(self, unit):
+        """Commits a unit of work.
+        """
         try:
             return self.service.ingester.commit(unit)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
 
     def xmlrpc_getLocation(self, loc_id):
+        """Retrieve a location by id
+        """
         try:
             return self.service.ingester.getLocation(loc_id)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
 
     def xmlrpc_getDataset(self, ds_id):
+        """Retrieve a dataset by id
+        """
         try:
             return self.service.ingester.getDataset(ds_id)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
 
     def xmlrpc_enableDataset(self, ds_id):
+        """Enable ingestion of a dataset.
+        """
         try:
             return self.service.ingester.enableDataset(ds_id)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
 
     def xmlrpc_disableDataset(self, ds_id):
+        """Disable ingestion of a dataset.
+        """
         try:
             return self.service.ingester.disableDataset(ds_id)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         
-    def xmlrpc_update(self, obj):
-        """
-        Return all passed args.
-        """
-        if obj["class"] == "dataset":
-            return self.service.ingester.persistDataset(obj)
-        else:
-            raise xmlrpc.Fault("%s not supported"%(obj["class"]))
-    
     def xmlrpc_ping(self):
         """A simple connection diagnostic method.
         """
