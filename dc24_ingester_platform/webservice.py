@@ -88,7 +88,8 @@ class ResettableManagementService(ManagementService):
     def xmlrpc_reset(self):
         """Cleans out all data. Used only for testing
         """
-        logger.info("Resetting data - Not Implemented")
+        self.service.ingester.reset()
+        self.service.repository.reset()
 
 def makeServer(service):
     """Construct a management service server using the supplied service facade.

@@ -94,6 +94,10 @@ class RepositoryDB(IRepositoryService):
         
         Observation.metadata.create_all(self.engine, checkfirst=True)
     
+    def reset(self):
+        Observation.metadata.drop_all(self.engine, checkfirst=True)
+        Observation.metadata.create_all(self.engine, checkfirst=True)
+    
     def persistObservation(self, dataset, time, attrs, cwd):
         # Check the attributes are actually in the schema
         schema = dataset["schema"]

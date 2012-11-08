@@ -152,10 +152,13 @@ class IngesterServiceDB(IIngesterService):
     def __init__(self, db_url):
         self.engine = create_engine(db_url)
         Location.metadata.create_all(self.engine, checkfirst=True)
-        Dataset.metadata.create_all(self.engine, checkfirst=True)
         
         self.samplers = {}
         self.data_source = {}
+
+    def reset(self):
+        Location.metadata.drop_all(self.engine)
+        Location.metadata.create_all(self.engine, checkfirst=True)
 
     def commit(self, unit):
         s = orm.sessionmaker(bind=self.engine)()
@@ -200,7 +203,7 @@ class IngesterServiceDB(IIngesterService):
                 s.commit()
                 return obj
             else:
-                raise ValueError("%s not supported"%(obj["class"]))
+                raise ValueError("%s not supported"%(klass))
         finally:
             s.close()
 
@@ -280,7 +283,8 @@ class IngesterServiceDB(IIngesterService):
             s.close()
         
     def _getDataset(self, ds_id, session):
-        """Get the dataset as a DTO"""
+        """Private method to actually get the dataset using the session provided.
+        """
         try:
             obj = session.query(Dataset).filter(Dataset.id == ds_id).one()
             ret = obj_to_dict(obj)
