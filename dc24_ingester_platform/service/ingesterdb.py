@@ -98,6 +98,7 @@ class Schema(Base):
     name = Column(String)
     for_ = Column(String, name="for")
     attributes = orm.relationship("SchemaAttribute")
+    repositoryId = Column(String)
     
 class SchemaAttribute(Base):
     __tablename__ = "SCHEMA_ATTRIBUTE"
@@ -319,6 +320,12 @@ class IngesterServiceDB(IIngesterService):
         merge_parameters(schema_.attributes, attrs, SchemaAttribute, value_attr="kind")
         
         schema_.for_ = for_
+
+        # If the repo has a method to persist the dataset then call it and record the output
+        fn = find_method(self.repo, "persist", "schema")
+        if fn != None:
+            schema_.repositoryId = fn(schema_)
+
         return self._persist(schema_, s)
         
     def _persist(self, obj, session):
