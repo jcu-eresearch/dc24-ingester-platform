@@ -502,4 +502,5 @@ class IngesterServiceDB(IIngesterService):
 
     def persistObservation(self, dataset, time, obs, cwd):
         """Persist the observation to the repository"""
-        self.repo(dataset, time, obs, cwd)
+        schema = self.getSchema(dataset.schema)
+        self.repo.persistObservation(dataset, schema, time, obs, cwd)

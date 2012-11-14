@@ -1,15 +1,21 @@
 """This module tests the service CRUD functionality
 """
 import unittest
-from dc24_ingester_platform.service import ingesterdb
+import tempfile
+import shutil
+from dc24_ingester_platform.service import ingesterdb, repodb
 
 
 class TestServiceModels(unittest.TestCase):
     def setUp(self):
-        self.service = ingesterdb.IngesterServiceDB("sqlite://")
+        self.files = tempfile.mkdtemp()
+        self.repo = repodb.RepositoryDB({"db":"sqlite://", "files":files})
+        self.service = ingesterdb.IngesterServiceDB("sqlite://", self.repo)
         
     def tearDown(self):
         del self.service
+        del self.repo
+        shutil.rmtree(self.files)
         
     def test_data_types(self):
         schema1 = {"class":"dataset_metadata_schema", "attributes": {"file":"file"}}

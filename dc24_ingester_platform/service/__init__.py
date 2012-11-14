@@ -5,7 +5,15 @@ facade, to aggregate all the operations into transactionally safe operations.
 class IRepositoryService(object):
     """Interface for data management service
     """
-    def persistObservation(self, dataset, time, obs, cwd):
+    def persistObservation(self, dataset, schema, time, obs, cwd):
+        """Persist the observation into the repository.
+
+        :param dataset: the dataset object which the observation will be persisted in
+        :param schema: the schema object for the dataset
+        :param time: datetime for when the observation occurred
+        :param observation: observation object
+        :param cwd: current working directory which all files stored in the observation are relative to
+        """
         raise NotImplementedError()
 
 class IIngesterService(object):

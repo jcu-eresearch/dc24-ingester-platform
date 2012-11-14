@@ -98,9 +98,8 @@ class RepositoryDB(IRepositoryService):
         Observation.metadata.drop_all(self.engine, checkfirst=True)
         Observation.metadata.create_all(self.engine, checkfirst=True)
     
-    def persistObservation(self, dataset, time, attrs, cwd):
+    def persistObservation(self, dataset, schema, time, attrs, cwd):
         # Check the attributes are actually in the schema
-        schema = dataset["schema"]
         for k in attrs:
             if k not in schema:
                 raise ValueError("%s is not in the schema"%(k))

@@ -80,7 +80,7 @@ class IngesterEngine(object):
         
         timestamp = parse_timestamp(obs["time"])
         del obs["time"]
-        self.service.repository.persistObservation(dataset, timestamp, obs, cwd)
+        self.service.persistObservation(dataset, timestamp, obs, cwd)
   
     def queue(self, dataset):
         """Enqueue the dataset for ingestion ASAP"""
