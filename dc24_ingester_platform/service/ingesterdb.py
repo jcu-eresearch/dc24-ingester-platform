@@ -31,6 +31,7 @@ def obj_to_dict(obj, klass=None):
     if ret["class"] == "schema":
         ret["class"] = ret["for_"] + "_schema"
         del ret["for_"]
+        ret["attributes"] = parameters_to_dict(obj.attributes, value_attr="kind")
     return ret
 
 def dict_to_object(dic, obj):
@@ -156,6 +157,15 @@ def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="val
         setattr(obj, name_attr, k)
         setattr(obj, value_attr, working[k])
         col_orig.append(obj)
+
+def parameters_to_dict(params, name_attr="name", value_attr="value"):
+    """Map a parameters set back to a dict"""
+    ret = {}
+    for obj in params:
+        k = getattr(obj, name_attr)
+        v = getattr(obj, value_attr)
+        ret[k] = v
+    return ret
         
 def ingest_order(x, y):
     """Sort objects by class according to the order which will make an insert transaction work.
@@ -435,8 +445,8 @@ class IngesterServiceDB(IIngesterService):
         session = orm.sessionmaker(bind=self.engine)()
         try:
             obj = session.query(Schema).filter(Schema.id == s_id).one()
-            obj = obj_to_dict(obj)
-            return obj
+            schema = obj_to_dict(obj)
+            return schema
         finally:
             session.close()
             
@@ -502,5 +512,5 @@ class IngesterServiceDB(IIngesterService):
 
     def persistObservation(self, dataset, time, obs, cwd):
         """Persist the observation to the repository"""
-        schema = self.getSchema(dataset.schema)
+        schema = self.getSchema(dataset["schema"])
         self.repo.persistObservation(dataset, schema, time, obs, cwd)

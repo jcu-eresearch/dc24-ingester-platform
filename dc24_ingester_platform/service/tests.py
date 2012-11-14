@@ -9,7 +9,7 @@ from dc24_ingester_platform.service import ingesterdb, repodb
 class TestServiceModels(unittest.TestCase):
     def setUp(self):
         self.files = tempfile.mkdtemp()
-        self.repo = repodb.RepositoryDB({"db":"sqlite://", "files":files})
+        self.repo = repodb.RepositoryDB({"db":"sqlite://", "files":self.files})
         self.service = ingesterdb.IngesterServiceDB("sqlite://", self.repo)
         
     def tearDown(self):
@@ -20,6 +20,8 @@ class TestServiceModels(unittest.TestCase):
     def test_data_types(self):
         schema1 = {"class":"dataset_metadata_schema", "attributes": {"file":"file"}}
         schema1a = self.service.persist(schema1)
+        self.assertIn("attributes", schema1a)
+        self.assertIn("file", schema1a["attributes"])
         schema2 = {"class":"data_entry_schema", "attributes": {"file":"file"}}
         schema2a = self.service.persist(schema2)
 
