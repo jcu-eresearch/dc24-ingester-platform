@@ -30,7 +30,7 @@ class IngesterEngine(object):
     def processSamplers(self):
         now = datetime.datetime.now()
         datasets = self.service.getActiveDatasets()
-        logger.info("Got %s datasets"%(len(datasets)))
+        logger.info("Got %s datasets at %s"%(len(datasets), str(now)))
         # Verify if the schedule has run
         for dataset in datasets:
             if "sampling" not in dataset or dataset["sampling"] == None: continue 

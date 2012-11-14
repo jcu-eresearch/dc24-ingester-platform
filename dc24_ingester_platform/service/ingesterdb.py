@@ -258,6 +258,10 @@ class IngesterServiceDB(IIngesterService):
         
         # Check schema is of the correct type
         try:
+            location = session.query(Location).filter(Location.id == dataset["location"]).one()
+        except NoResultFound, e:
+            raise ValueError("Provided location not found")
+        try:
             schema = session.query(Schema).filter(Schema.id == dataset["schema"]).one()
         except NoResultFound, e:
             raise ValueError("Provided schema not found")
@@ -297,7 +301,7 @@ class IngesterServiceDB(IIngesterService):
         # If the repo has a method to persist the dataset then call it and record the output
         fn = find_method(self.repo, "persist", "dataset")
         if fn != None:
-            ds.repositoryId = fn(ds)
+            ds.repositoryId = fn(ds, schema, location)
 
         self._persist(ds, session)
         return self._getDataset(ds.id, session)

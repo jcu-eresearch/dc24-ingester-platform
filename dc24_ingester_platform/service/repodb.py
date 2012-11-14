@@ -98,7 +98,7 @@ class RepositoryDB(IRepositoryService):
         Observation.metadata.drop_all(self.engine, checkfirst=True)
         Observation.metadata.create_all(self.engine, checkfirst=True)
     
-    def persistObservation(self, dataset, schema, time, attrs, cwd):
+    def persistObservation(self, dataset, schema, timestamp, attrs, cwd):
         schema = schema["attributes"]
         # Check the attributes are actually in the schema
         for k in attrs:
@@ -108,7 +108,7 @@ class RepositoryDB(IRepositoryService):
         s = orm.sessionmaker(bind=self.engine)()
         try:
             obs = Observation()
-            obs.timestamp = time
+            obs.timestamp = timestamp
             obs.dataset = dataset["id"]
             
             s.add(obs)

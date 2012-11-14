@@ -71,7 +71,11 @@ def makeService(db_url, repo_url):
     """
     import ingesterdb
     import repodb
+    import repodam
     
-    repo = repodb.RepositoryDB(repo_url)
+    if isinstance(repo_url, dict):
+        repo = repodb.RepositoryDB(repo_url)
+    else:
+        repo = repodam.RepositoryDAM(repo_url)
     ingester_service = ingesterdb.IngesterServiceDB(db_url, repo=repo)
     return ingester_service
