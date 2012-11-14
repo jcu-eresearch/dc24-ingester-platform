@@ -486,3 +486,16 @@ class IngesterServiceDB(IIngesterService):
     def getDataSourceState(self, id):
         if id not in self.data_source: return {}
         return self.data_source[id]
+            
+    def findDatasets(self, **kwargs):
+        """Find all datasets with the provided attributes"""
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            objs = session.query(Dataset).all()
+            ret_list = []
+            for obj in objs:
+                ret_list.append(obj_to_dict(obj))
+            return ret_list
+        finally:
+            session.close()
+

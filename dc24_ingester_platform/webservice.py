@@ -79,6 +79,14 @@ class ManagementService(xmlrpc.XMLRPC):
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         
+    def xmlrpc_findDatasets(self, search_args):
+        """Disable ingestion of a dataset.
+        """
+        try:
+            return self.service.ingester.findDatasets(**search_args)
+        except ValueError, e:
+            raise xmlrpc.Fault(1, str(e))
+        
     def xmlrpc_ping(self):
         """A simple connection diagnostic method.
         """

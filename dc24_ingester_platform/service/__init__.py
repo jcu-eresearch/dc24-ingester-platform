@@ -37,6 +37,8 @@ class IIngesterService(object):
         raise NotImplementedError()
     def getIngesterEvents(self, dataset_id):
         raise NotImplementedError()
+    def findDatasets(self, **kwargs):
+        raise NotImplementedError()
 
 def makeService(db_url, repo_url):
     """Construct a service facade from the provided service URLs
