@@ -2,12 +2,6 @@
 facade, to aggregate all the operations into transactionally safe operations.
 """
 
-class ServiceFacade(object):
-    def __init__(self, ingester, repository):
-        self.ingester = ingester
-        self.repository = repository
-
-
 class IRepositoryService(object):
     """Interface for data management service
     """
@@ -39,6 +33,27 @@ class IIngesterService(object):
         raise NotImplementedError()
     def findDatasets(self, **kwargs):
         raise NotImplementedError()
+    def persistObservation(self, dataset, time, obs, cwd):
+        raise NotImplementedError()
+
+def method(verb, cls):
+    """Annotation for identifying which class methods are responsible
+    for different actions and classes
+    :param verb: Action (persist, get, delete)
+    :param cls: The serialised class name string
+    """ 
+    def _method(fn):
+        fn.verb = verb
+        fn.cls = cls
+        return fn
+    return _method
+
+def find_method(self, verb, cls):
+    for fn in dir(self):
+        fn = getattr(self, fn)
+        if hasattr(fn, "verb") and hasattr(fn, "cls") and fn.verb == verb and fn.cls == cls:
+            return fn
+    return None
 
 def makeService(db_url, repo_url):
     """Construct a service facade from the provided service URLs
@@ -49,6 +64,6 @@ def makeService(db_url, repo_url):
     import ingesterdb
     import repodb
     
-    ingester = ingesterdb.IngesterServiceDB(db_url)
     repo = repodb.RepositoryDB(repo_url)
-    return ServiceFacade(ingester, repo)
+    ingester_service = ingesterdb.IngesterServiceDB(db_url, repo=repo)
+    return ingester_service

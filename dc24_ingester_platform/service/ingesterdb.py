@@ -3,7 +3,7 @@ Created on Oct 5, 2012
 
 @author: nigel
 """
-from dc24_ingester_platform.service import IIngesterService
+from dc24_ingester_platform.service import IIngesterService, find_method, method
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, DECIMAL, Boolean, ForeignKey, DateTime
 import sqlalchemy.orm as orm
@@ -46,6 +46,7 @@ class Location(Base):
     longitude = Column(DECIMAL)
     name = Column(String)
     elevation = Column(DECIMAL)
+    repositoryId = Column(String)
 
 class Dataset(Base):
     __tablename__ = "DATASETS"
@@ -56,6 +57,7 @@ class Dataset(Base):
     sampling = orm.relationship("Sampling", uselist=False)
     schema = Column(Integer, ForeignKey('SCHEMA.id'))
     enabled = Column(Boolean, default=True)
+    repositoryId = Column(String)
 
 class Sampling(Base):
     """A DataSource is a generic data storage class"""
@@ -154,18 +156,6 @@ def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="val
         setattr(obj, value_attr, working[k])
         col_orig.append(obj)
         
-def method(verb, cls):
-    """Annotation for identifying which class methods are responsible
-    for different actions and classes
-    :param verb: Action (persist, get, delete)
-    :param cls: The serialised class name string
-    """ 
-    def _method(fn):
-        fn.verb = verb
-        fn.cls = cls
-        return fn
-    return _method
-
 def ingest_order(x, y):
     """Sort objects by class according to the order which will make an insert transaction work.
     """
@@ -187,23 +177,18 @@ class IngesterServiceDB(IIngesterService):
     
     All objects/DTOs passed in and out of this service are dicts. This service protects the storage layer.
     """
-    def __init__(self, db_url):
+    def __init__(self, db_url, repo):
         self.engine = create_engine(db_url)
         Location.metadata.create_all(self.engine, checkfirst=True)
         
         self.samplers = {}
         self.data_source = {}
-
-    def findMethod(self, verb, cls):
-        for fn in dir(self):
-            fn = getattr(self, fn)
-            if hasattr(fn, "verb") and hasattr(fn, "cls") and fn.verb == verb and fn.cls == cls:
-                return fn
-        return None
+        self.repo = repo
 
     def reset(self):
         Location.metadata.drop_all(self.engine)
         Location.metadata.create_all(self.engine, checkfirst=True)
+        self.repo.reset()
 
     def commit(self, unit):
         s = orm.sessionmaker(bind=self.engine)()
@@ -223,7 +208,7 @@ class IngesterServiceDB(IIngesterService):
                 if obj["class"] == "dataset":
                     if obj["location"] < 0: obj["location"] = locs[obj["location"]]
                     if obj["schema"] < 0: obj["schema"] = schemas[obj["schema"]]
-                fn = self.findMethod("persist", cls)
+                fn = find_method(self, "persist", cls)
                 if fn == None:
                     raise ValueError("Could not find method for", "persist", cls)
                 obj = fn(obj, s)
@@ -244,7 +229,7 @@ class IngesterServiceDB(IIngesterService):
         
         cls = obj["class"]
         del obj["class"]
-        fn = self.findMethod("persist", cls)
+        fn = find_method(self, "persist", cls)
         if fn != None:
             s = orm.sessionmaker(bind=self.engine)()
             try:
@@ -297,8 +282,12 @@ class IngesterServiceDB(IIngesterService):
             ds.sampling.kind = sampling["class"]
             del sampling["class"]
             merge_parameters(ds.sampling.parameters, sampling, SamplingParameter)
-        
-        
+                
+        # If the repo has a method to persist the dataset then call it and record the output
+        fn = find_method(self.repo, "persist", "dataset")
+        if fn != None:
+            ds.repositoryId = fn(ds)
+
         self._persist(ds, session)
         return self._getDataset(ds.id, session)
     
@@ -306,6 +295,11 @@ class IngesterServiceDB(IIngesterService):
     def persistLocation(self, location, s):
         loc = Location()
         dict_to_object(location, loc)
+        # If the repo has a method to persist the dataset then call it and record the output
+        fn = find_method(self.repo, "persist", "location")
+        if fn != None:
+            loc.repositoryId = fn(loc)
+
         return self._persist(loc, s)
     
     @method("persist", "dataset_metadata_schema")    
@@ -499,3 +493,6 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
 
+    def persistObservation(self, dataset, time, obs, cwd):
+        """Persist the observation to the repository"""
+        self.repo(dataset, time, obs, cwd)

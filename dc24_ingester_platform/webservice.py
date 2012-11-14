@@ -26,7 +26,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """ Insert the passed object into the ingester platform
         """
         try:
-            return self.service.ingester.persist(obj)
+            return self.service.persist(obj)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         
@@ -34,7 +34,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Store the passed object.
         """
         try:
-            return self.service.ingester.persist(obj)
+            return self.service.persist(obj)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
     
@@ -43,7 +43,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Commits a unit of work.
         """
         try:
-            return self.service.ingester.commit(unit)
+            return self.service.commit(unit)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
 
@@ -51,7 +51,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Retrieve a location by id
         """
         try:
-            return self.service.ingester.getLocation(loc_id)
+            return self.service.getLocation(loc_id)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
 
@@ -59,7 +59,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Retrieve a dataset by id
         """
         try:
-            return self.service.ingester.getDataset(ds_id)
+            return self.service.getDataset(ds_id)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
 
@@ -67,7 +67,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Enable ingestion of a dataset.
         """
         try:
-            return self.service.ingester.enableDataset(ds_id)
+            return self.service.enableDataset(ds_id)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
 
@@ -75,7 +75,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Disable ingestion of a dataset.
         """
         try:
-            return self.service.ingester.disableDataset(ds_id)
+            return self.service.disableDataset(ds_id)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         
@@ -83,7 +83,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Disable ingestion of a dataset.
         """
         try:
-            return self.service.ingester.findDatasets(**search_args)
+            return self.service.findDatasets(**search_args)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         
@@ -105,8 +105,7 @@ class ResettableManagementService(ManagementService):
     def xmlrpc_reset(self):
         """Cleans out all data. Used only for testing
         """
-        self.service.ingester.reset()
-        self.service.repository.reset()
+        self.service.reset()
 
 def makeServer(service):
     """Construct a management service server using the supplied service facade.
