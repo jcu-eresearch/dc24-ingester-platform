@@ -32,12 +32,36 @@ def obj_to_dict(obj, klass=None):
         ret["class"] = ret["for_"] + "_schema"
         del ret["for_"]
         ret["attributes"] = parameters_to_dict(obj.attributes, value_attr="kind")
+    elif ret["class"] == "region":
+        obj.region_points.sort(cmp=lambda a,b: cmp(a.order,b.order))
+        ret["region_points"] = [(point.latitude, point.longitude) for point in obj.region_points]
     return ret
 
 def dict_to_object(dic, obj):
     for attr in dir(obj):
         if attr.startswith("_"): continue
         if dic.has_key(attr): setattr(obj, attr, dic[attr])
+
+class Region(Base):
+    __tablename__ = "REGION"
+    __xmlrpc_class__ = "region"
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    #parentRegions = orm.relationship("Region")
+    region_points = orm.relationship("RegionPoint")
+    
+class RegionPoint(Base):
+    __tablename__ = "REGION_POINT"
+    id = Column(Integer, primary_key=True)
+    order = Column(Integer, unique=True)
+    latitude = Column(DECIMAL)
+    longitude = Column(DECIMAL)
+    region_id = Column(Integer, ForeignKey("REGION.id"))
+    
+    def __init__(self, lat=None, lng=None, order=None):
+        self.latitude = lat
+        self.longitude = lng
+        self.order = order
 
 class Location(Base):
     __tablename__ = "LOCATIONS"
@@ -48,6 +72,7 @@ class Location(Base):
     name = Column(String)
     elevation = Column(DECIMAL)
     repositoryId = Column(String)
+    #region = orm.relationship("Region", uselist=False)
 
 class Dataset(Base):
     __tablename__ = "DATASETS"
@@ -255,7 +280,8 @@ class IngesterServiceDB(IIngesterService):
     def persistDataset(self, dataset, session):
         """Assumes that we have a copy of the object, so we can change it if required.
         """
-        
+        if "location" not in dataset:
+            raise ValueError("Location must be set")
         # Check schema is of the correct type
         try:
             location = session.query(Location).filter(Location.id == dataset["location"]).one()
@@ -305,6 +331,24 @@ class IngesterServiceDB(IIngesterService):
 
         self._persist(ds, session)
         return self._getDataset(ds.id, session)
+
+    @method("persist", "region")    
+    def persistRegion(self, region, session):
+        points = region["region_points"]
+        del region["region_points"]
+        reg = Region()
+        if region.has_key("id") and region["id"] != None:
+            reg = obj_to_dict(session.query(Region).filter(Region.id == region["id"]).one())
+        dict_to_object(region, reg)
+        
+        while len(reg.region_points) > 0:
+            reg.region_points.remove(0)
+        i = 0
+        for lat,lng in points:
+            reg.region_points.append(RegionPoint(lat, lng, i))
+            i += 1
+        
+        return self._persist(reg, session)
     
     @method("persist", "location")    
     def persistLocation(self, location, s):
@@ -318,12 +362,12 @@ class IngesterServiceDB(IIngesterService):
         return self._persist(loc, s)
     
     @method("persist", "dataset_metadata_schema")    
-    def persistDatasetMetaDataSchema(self, schema, s):
-        return self._persistSchema(schema, "dataset_metadata", s)
+    def persistDatasetMetaDataSchema(self, schema, session):
+        return self._persistSchema(schema, "dataset_metadata", session)
 
     @method("persist", "data_entry_schema")    
-    def persistDataEntrySchema(self, schema, s):
-        return self._persistSchema(schema, "data_entry", s)
+    def persistDataEntrySchema(self, schema, session):
+        return self._persistSchema(schema, "data_entry", session)
         
     def _persistSchema(self, schema, for_, s):
         schema = schema.copy()
