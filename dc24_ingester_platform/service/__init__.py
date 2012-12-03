@@ -70,12 +70,12 @@ def makeService(db_url, repo_url):
     then construct a simple local repository
     """
     import ingesterdb
-    import repodb
-    import repodam
     
     if isinstance(repo_url, dict):
+        import repodb
         repo = repodb.RepositoryDB(repo_url)
     else:
+        import repodam
         repo = repodam.RepositoryDAM(repo_url)
     ingester_service = ingesterdb.IngesterServiceDB(db_url, repo=repo)
     return ingester_service
