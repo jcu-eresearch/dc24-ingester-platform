@@ -83,6 +83,7 @@ class Dataset(Base):
     sampling = orm.relationship("Sampling", uselist=False)
     schema = Column(Integer, ForeignKey('SCHEMA.id'))
     enabled = Column(Boolean, default=True)
+    redboxUri = Column(String)
     repositoryId = Column(String)
 
 class Sampling(Base):
