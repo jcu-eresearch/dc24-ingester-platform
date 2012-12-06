@@ -69,20 +69,21 @@ class IngesterEngine(object):
                 data_entries = data_source.fetch(cwd)
                 
                 if "processing_script" in dataset:
-                    logger.info("Processing with "+dataset["processing_script"])
                     data_entries = run_script(dataset["processing_script"], cwd, data_entries)
                 else:
                     data_entries = [data_entries]
                 
                 for entry in data_entries:
                     if isinstance(entry, tuple):
+                        logger.info("storing to non-default dataset")
                         self.queueIngest(self.service.getDataset(entry[0]), entry[1], cwd)
                     else:
+                        logger.info("storing to default dataset")
                         self.queueIngest(dataset, entry, cwd)
                         
                 self.service.persistDataSourceState(dataset["id"], data_source.state)
             except Exception, e:
-                print str(e)
+                logger.error(str(e))
                 self.service.logIngesterEvent(dataset["id"], datetime.datetime.now(), "ERROR", str(e))
   
     def processIngestQueue(self):
@@ -99,6 +100,7 @@ class IngesterEngine(object):
         self._queue.append(dataset)
 
     def queueIngest(self, dataset, ingest_data, cwd):
+        logger.info("queue:"+`len(self._ingest_queue)`)
         self._ingest_queue.append((dataset, ingest_data, cwd))
 
 def startIngester(service):

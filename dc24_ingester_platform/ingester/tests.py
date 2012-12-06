@@ -9,10 +9,13 @@ import unittest
 import datetime
 import shutil
 import tempfile
+import logging
 from processor import *
 from dc24_ingester_platform.service import IIngesterService
 from dc24_ingester_platform.ingester import IngesterEngine
 from dc24_ingester_platform.ingester.data_sources import DataSource
+
+logger = logging.getLogger("dc24_ingester_platform")
 
 class TestScriptModels(unittest.TestCase):
     def setUp(self):
@@ -45,12 +48,16 @@ class TestScriptModels(unittest.TestCase):
 class MockService(IIngesterService):
     def __init__(self):
         self.logs = {}
+        self.datasets = {}
         
     def getDataSourceState(self, dataset_id):
         return {}
     
     def persistDataSourceState(self, dataset_id, state):
         return
+    
+    def getDataset(self, dataset_id):
+        return self.datasets[dataset_id]
     
     def logIngesterEvent(self, dataset_id, timestamp, level, message):
         if dataset_id not in self.logs:
@@ -67,7 +74,7 @@ class MockSourceCSV1(MockSource):
     """This simple data source will create a CSV file with 2 lines"""
     def fetch(self, cwd):
         with open(os.path.join(cwd, "file"), "w") as f:
-            f.write("0,1\n1,2\n")
+            f.write("2,55\n3,2\n")
             
         return {"time":format_timestamp(datetime.datetime.now()), "file":"file"}
 
@@ -94,7 +101,8 @@ class TestIngesterProcess(unittest.TestCase):
         self.assertEquals(1, len(self.ingester._ingest_queue))
         
     def testComplexIngest(self):
-        """This test performs a simple data ingest"""
+        """This test performs a complex data ingest, where the main data goes into dataset 1 and 
+        the extracted data goes into dataset 2"""
         script = """import os
 import datetime
 from dc24_ingester_platform.utils import *
@@ -105,13 +113,16 @@ def process(cwd, data_entry):
         for l in f.readlines():
             l = l.strip().split(",")
             if len(l) != 2: continue
-            ret.append({"time":format_timestamp(datetime.datetime.now()), "a":l[1].strip()})
+            ret.append( (2,{"time":format_timestamp(datetime.datetime.now()), "a":l[1].strip()}) )
     return ret
 """            
         dataset = {"id":1, "data_source":{"class":"csv1"}, "processing_script":script}
+        dataset2 = {"id":2}
+        self.service.datasets[1] = dataset
+        self.service.datasets[2] = dataset2
+        
         self.ingester.queue(dataset)
         self.ingester.processQueue()
-        
         self.assertEquals(3, len(self.ingester._ingest_queue))
         
                 
