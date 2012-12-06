@@ -13,8 +13,8 @@ import logging
 import datetime
 import tempfile
 import time
+from processor import *
 from dc24_ingester_platform.utils import *
-
 from twisted.internet.task import LoopingCall
 from dc24_ingester_platform.ingester.sampling import create_sampler
 from dc24_ingester_platform.ingester.data_sources import create_data_source
@@ -22,10 +22,11 @@ from dc24_ingester_platform.ingester.data_sources import create_data_source
 logger = logging.getLogger("dc24_ingester_platform")
 
 class IngesterEngine(object):
-    def __init__(self, service):
+    def __init__(self, service, data_source_factory=create_data_source):
         self.service = service
         self._queue = []
         self._ingest_queue = []
+        self._data_source_factory = data_source_factory
         
     def processSamplers(self):
         now = datetime.datetime.now()
@@ -61,13 +62,24 @@ class IngesterEngine(object):
             
             state = self.service.getDataSourceState(dataset["id"])
             try:
-                data_source = create_data_source(dataset["data_source"], state)
+                data_source = self._data_source_factory(dataset["data_source"], state)
                 self.service.logIngesterEvent(dataset["id"], datetime.datetime.now(), "INFO", "Processing ")
                 cwd = tempfile.mkdtemp()
                 
-                ingest_data = data_source.fetch(cwd)
+                data_entries = data_source.fetch(cwd)
                 
-                self.queueIngest(dataset, ingest_data, cwd)
+                if "processing_script" in dataset:
+                    logger.info("Processing with "+dataset["processing_script"])
+                    data_entries = run_script(dataset["processing_script"], cwd, data_entries)
+                else:
+                    data_entries = [data_entries]
+                
+                for entry in data_entries:
+                    if isinstance(entry, tuple):
+                        self.queueIngest(self.service.getDataset(entry[0]), entry[1], cwd)
+                    else:
+                        self.queueIngest(dataset, entry, cwd)
+                        
                 self.service.persistDataSourceState(dataset["id"], data_source.state)
             except Exception, e:
                 print str(e)

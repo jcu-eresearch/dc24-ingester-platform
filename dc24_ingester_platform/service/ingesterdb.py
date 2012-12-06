@@ -84,6 +84,7 @@ class Dataset(Base):
     schema = Column(Integer, ForeignKey('SCHEMA.id'))
     enabled = Column(Boolean, default=True)
     redboxUri = Column(String)
+    processing_script = Column(String(32000))
     repositoryId = Column(String)
 
 class Sampling(Base):

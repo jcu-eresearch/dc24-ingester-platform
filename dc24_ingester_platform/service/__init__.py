@@ -27,11 +27,11 @@ class IIngesterService(object):
         raise NotImplementedError()
     def getActiveDatasets(self):
         raise NotImplementedError()
-    def persisteSamplerState(self, dataset_id, state):
+    def persistSamplerState(self, dataset_id, state):
         raise NotImplementedError()
     def getSamplerState(self, dataset_id):
         raise NotImplementedError()
-    def persisteDataSourceState(self, dataset_id, state):
+    def persistDataSourceState(self, dataset_id, state):
         raise NotImplementedError()
     def getDataSourceState(self, dataset_id):
         raise NotImplementedError()
