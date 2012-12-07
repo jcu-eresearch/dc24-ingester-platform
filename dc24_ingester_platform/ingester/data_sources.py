@@ -4,6 +4,7 @@ Created on Nov 1, 2012
 @author: nigel
 """
 import os
+import re
 import datetime
 import shutil
 import logging
@@ -26,12 +27,16 @@ class DataSource(object):
         """Downloads and curate data from data source.
         
         :param cwd: working directory to place binary data
-        :returns: dict containing the data to be ingested
+        :returns: array of dicts containing the data to be ingested
         """
         raise NotImplementedError("sample is not implemented for "+str(type(self)))
 
 
 class PullDataSource(DataSource):
+    """The pull data source fetches from a URL and ingests into the configured
+    field. It stores the last timestamp to determine if there is new data
+    """
+    field = None # The field to ingest into
     def fetch(self, cwd):
         """Fetch from a URI using urllib2
         
@@ -51,9 +56,49 @@ class PullDataSource(DataSource):
             self.state["lasttime"] = timestamp
         finally:
             if f_in != None: f_in.close()
-        return {"time":timestamp, self.field: "outputfile"}
+        return [{"time":timestamp, self.field: "outputfile"}]
 
-data_sources = {"pull_data_source":PullDataSource}
+class PushDataSource(DataSource):
+    """Scan an incoming directory for new data. The filename encodes
+    the timestamp that should be on the record.
+    """
+    path = None # The path to monitor
+    field = None # The field to ingest into
+
+    def fetch(self, cwd):
+        """Fetch from a URI using urllib2
+        
+        :param cwd: working directory to place binary data
+        :returns: dict containing the data to be ingested
+        """
+        RE_FILENAME = re.compile("$([0-9]+)^")
+        ret = []
+        for f_name in os.listdir(self.path):
+            m = RE_FILENAME.match(f_name)
+            if m == None: continue
+            new_filename = "file-"+f_name
+            os.rename(os.path.join(self.path, f_name), os.path.join(cwd, new_filename))
+            timestamp = format_timestamp(datetime.datetime.utcfromtimestamp(int(m.group(1))))
+            ret.append({"time":timestamp, self.field: new_filename})
+        return ret
+
+class DatasetDataSource(DataSource):
+    """Fetches data from a remote data source and returns its data entry.
+    This is worked on by the processor script to transform it into
+    one or more data entries that conform to the target dataset schema.
+    """
+    dataset = None # Source dataset
+    data_entry = None # Source data entry
+
+    def fetch(self, cwd):
+        """Fetch from a URI using urllib2
+        
+        :param cwd: working directory to place binary data
+        :returns: dict containing the data to be ingested
+        """
+        return [self.data_entry]
+
+data_sources = {"pull_data_source":PullDataSource, "push_data_source":PushDataSource, "dataset_data_source":DatasetDataSource}
 
 class NoSuchDataSource(Exception):
     """An exception that occurs when there is no sampler available."""

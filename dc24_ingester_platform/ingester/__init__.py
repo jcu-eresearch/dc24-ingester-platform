@@ -24,11 +24,15 @@ logger = logging.getLogger("dc24_ingester_platform")
 class IngesterEngine(object):
     def __init__(self, service, data_source_factory=create_data_source):
         self.service = service
+        self.service.ingester = self
         self._queue = []
         self._ingest_queue = []
         self._data_source_factory = data_source_factory
         
     def processSamplers(self):
+        """Process all the active dataset samplers to determine which are
+        firing.
+        """
         now = datetime.datetime.now()
         datasets = self.service.getActiveDatasets()
         logger.info("Got %s datasets at %s"%(len(datasets), str(now)))
@@ -56,6 +60,7 @@ class IngesterEngine(object):
             self.service.logIngesterEvent(dataset["id"], datetime.datetime.now(), "ERROR", str(e))
   
     def processQueue(self):
+        """Process the pending fetch and process queue"""
         while len(self._queue) > 0:
             dataset = self._queue[0]
             del self._queue[0]
@@ -71,8 +76,6 @@ class IngesterEngine(object):
                 if "processing_script" in dataset:
                     logger.info("Processing with "+dataset["processing_script"])
                     data_entries = run_script(dataset["processing_script"], cwd, data_entries)
-                else:
-                    data_entries = [data_entries]
                 
                 for entry in data_entries:
                     if isinstance(entry, tuple):
@@ -86,6 +89,7 @@ class IngesterEngine(object):
                 self.service.logIngesterEvent(dataset["id"], datetime.datetime.now(), "ERROR", str(e))
   
     def processIngestQueue(self):
+        """Process one entry in the ingest queue"""
         if len(self._ingest_queue) == 0: return
         dataset, obs, cwd = self._ingest_queue[0]
         del self._ingest_queue[0]
@@ -95,10 +99,11 @@ class IngesterEngine(object):
         self.service.persistObservation(dataset, timestamp, obs, cwd)
   
     def queue(self, dataset):
-        """Enqueue the dataset for ingestion ASAP"""
+        """Enqueue the dataset for fetch and process ASAP"""
         self._queue.append(dataset)
 
     def queueIngest(self, dataset, ingest_data, cwd):
+        """Queue a data entry for ingest into the repository"""
         self._ingest_queue.append((dataset, ingest_data, cwd))
 
 def startIngester(service):

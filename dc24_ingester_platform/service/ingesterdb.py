@@ -560,7 +560,15 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
 
+    def findObservations(self, d_id):
+        return self.repo.findObservations(self.getDataset(d_id))
+
     def persistObservation(self, dataset, time, obs, cwd):
         """Persist the observation to the repository"""
         schema = self.getSchema(dataset["schema"])
         self.repo.persistObservation(dataset, schema, time, obs, cwd)
+
+    def runIngester(self, d_id):
+        """Run the ingester for the given dataset ID"""
+        self.ingester.queue(self.getDataset(d_id))
+
