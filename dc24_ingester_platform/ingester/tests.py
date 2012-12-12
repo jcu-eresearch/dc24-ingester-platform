@@ -108,7 +108,7 @@ import datetime
 from dc24_ingester_platform.utils import *
 
 def process(cwd, data_entry):
-    ret = [data_entry]
+    ret = []+data_entry
     with open(os.path.join(cwd, data_entry["file"])) as f:
         for l in f.readlines():
             l = l.strip().split(",")
