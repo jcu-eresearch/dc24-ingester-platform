@@ -22,9 +22,13 @@ from dc24_ingester_platform.ingester.data_sources import create_data_source
 logger = logging.getLogger("dc24_ingester_platform")
 
 class IngesterEngine(object):
-    def __init__(self, service, data_source_factory=create_data_source):
+    def __init__(self, service, staging_dir, data_source_factory=create_data_source):
+        """Create an ingester engine, and register itself with the service facade.
+        """
         self.service = service
         self.service.ingester = self
+        self.staging_dir = staging_dir
+        if not os.path.exists(self.staging_dir): os.makedirs(self.staging_dir)
         self._queue = []
         self._ingest_queue = []
         self._data_source_factory = data_source_factory
@@ -62,14 +66,14 @@ class IngesterEngine(object):
     def processQueue(self):
         """Process the pending fetch and process queue"""
         while len(self._queue) > 0:
-            dataset = self._queue[0]
+            dataset, parameters = self._queue[0]
             del self._queue[0]
             
             state = self.service.getDataSourceState(dataset["id"])
             try:
-                data_source = self._data_source_factory(dataset["data_source"], state)
+                data_source = self._data_source_factory(dataset["data_source"], state, parameters)
                 self.service.logIngesterEvent(dataset["id"], datetime.datetime.now(), "INFO", "Processing ")
-                cwd = tempfile.mkdtemp()
+                cwd = tempfile.mkdtemp(dir=self.staging_dir)
                 
                 data_entries = data_source.fetch(cwd)
                 
@@ -99,15 +103,20 @@ class IngesterEngine(object):
         del obs["time"]
         self.service.persistObservation(dataset, timestamp, obs, cwd)
   
-    def queue(self, dataset):
+    def queue(self, dataset, parameters=None):
         """Enqueue the dataset for fetch and process ASAP"""
-        self._queue.append(dataset)
+        self._queue.append( (dataset, parameters) )
 
     def queueIngest(self, dataset, ingest_data, cwd):
         """Queue a data entry for ingest into the repository"""
         self._ingest_queue.append((dataset, ingest_data, cwd))
 
-def startIngester(service):
+def startIngester(service, staging_dir):
+    """Setup and start the ingester loop.
+    
+    :param service: the service facade
+    :param staging_dir: the folder that will hold all the staging data
+    """
     ingester = IngesterEngine(service)
     lc = LoopingCall(ingester.processSamplers)
     lc.start(15, False)

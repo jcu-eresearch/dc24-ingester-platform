@@ -12,7 +12,7 @@ import tempfile
 import logging
 from processor import *
 from dc24_ingester_platform.service import IIngesterService
-from dc24_ingester_platform.ingester import IngesterEngine
+from dc24_ingester_platform.ingester import IngesterEngine, create_data_source
 from dc24_ingester_platform.ingester.data_sources import DataSource
 
 logger = logging.getLogger("dc24_ingester_platform")
@@ -65,9 +65,10 @@ class MockService(IIngesterService):
         self.logs[dataset_id].append( (timestamp, level, message) )
 
 class MockSource(DataSource):
-    def __init__(self, source, state):
+    def __init__(self, source, state, parameters):
         self.source = source
         self.state = state
+        self.parameters = parameters
         
 
 class MockSourceCSV1(MockSource):
@@ -76,21 +77,28 @@ class MockSourceCSV1(MockSource):
         with open(os.path.join(cwd, "file"), "w") as f:
             f.write("2,55\n3,2\n")
             
-        return {"time":format_timestamp(datetime.datetime.now()), "file":"file"}
+        return [{"time":format_timestamp(datetime.datetime.now()), "file":"file"}]
 
 class TestIngesterProcess(unittest.TestCase):
     def setUp(self):
         self.cwd = tempfile.mkdtemp()
+        self.staging = tempfile.mkdtemp()
+        self.todelete = []
         
         self.service = MockService()
-        self.ingester = IngesterEngine(self.service, self.data_source_factory)
+        self.ingester = IngesterEngine(self.service, self.staging, self.data_source_factory)
 
     def tearDown(self):
         shutil.rmtree(self.cwd)
+        shutil.rmtree(self.staging)
+        for d_name in self.todelete:
+            shutil.rmtree(d_name)
 
-    def data_source_factory(self, source, state):
+    def data_source_factory(self, source, state, parameters):
         if source["class"] == "csv1":
-            return MockSourceCSV1(source, state)
+            return MockSourceCSV1(source, state, parameters)
+        else:
+            return create_data_source(source, state, parameters)
         
     def testBasicIngest(self):
         """This test performs a simple data ingest"""
@@ -108,7 +116,8 @@ import datetime
 from dc24_ingester_platform.utils import *
 
 def process(cwd, data_entry):
-    ret = []+data_entry
+    data_entry = data_entry[0]
+    ret = [data_entry]
     with open(os.path.join(cwd, data_entry["file"])) as f:
         for l in f.readlines():
             l = l.strip().split(",")
@@ -125,4 +134,24 @@ def process(cwd, data_entry):
         self.ingester.processQueue()
         self.assertEquals(3, len(self.ingester._ingest_queue))
         
-                
+    def testPush(self):
+        """This tests the push ingest by creating a test dir, populating it, then forcing the ingester to run
+        """
+        staging = tempfile.mkdtemp()
+        self.todelete.append(staging)
+        
+        # Create a temp file to ingest
+        f = open(os.path.join(staging, str(int(time.time()))), "a")
+        f.close()
+        
+        # Check there is only 1 file here
+        self.assertEquals(1, len(os.listdir(staging)))
+        
+        dataset = {"id":1, "data_source":{"class":"push_data_source"}}
+        self.ingester.queue(dataset, {"path":staging})
+        self.ingester.processQueue()
+        
+        self.assertEquals(1, len(self.ingester._ingest_queue))
+        
+        # Check there are now no files
+        self.assertEquals(0, len(os.listdir(staging)))

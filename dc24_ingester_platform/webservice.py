@@ -118,9 +118,9 @@ class ResettableManagementService(ManagementService):
 def makeServer(service):
     """Construct a management service server using the supplied service facade.
     """
-    return server.Site(ManagementService(service))
+    return ManagementService(service)
 
 def makeResettableServer(service):
     """Construct a management service server using the supplied service facade.
     """
-    return server.Site(ResettableManagementService(service))
+    return ResettableManagementService(service)
