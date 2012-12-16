@@ -110,6 +110,11 @@ class IngesterEngine(object):
     def queueIngest(self, dataset, ingest_data, cwd):
         """Queue a data entry for ingest into the repository"""
         self._ingest_queue.append((dataset, ingest_data, cwd))
+        
+    def notifyNewObservation(self, dataset, timestamp, attrs, cwd):
+        """Notification of new data. On return it is expected that the cwd will be
+        cleaned up, so any data that is required should be copied.
+        """
 
 def startIngester(service, staging_dir):
     """Setup and start the ingester loop.
