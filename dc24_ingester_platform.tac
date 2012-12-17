@@ -18,6 +18,8 @@ observer.start()
 
 from dc24_ingester_platform import webservice
 from dc24_ingester_platform import ingester
+from dc24_ingester_platform import push
+
 from dc24_ingester_platform import service as platform_service
 
 # attach the service to its parent application

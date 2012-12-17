@@ -122,7 +122,7 @@ def startIngester(service, staging_dir):
     :param service: the service facade
     :param staging_dir: the folder that will hold all the staging data
     """
-    ingester = IngesterEngine(service)
+    ingester = IngesterEngine(service, staging_dir)
     lc = LoopingCall(ingester.processSamplers)
     lc.start(15, False)
     
