@@ -83,6 +83,7 @@ class Dataset(Base):
     sampling = orm.relationship("Sampling", uselist=False)
     schema = Column(Integer, ForeignKey('SCHEMA.id'))
     enabled = Column(Boolean, default=True)
+    description = Column(String)
     redboxUri = Column(String)
     processing_script = Column(String(32000))
     repositoryId = Column(String)
@@ -133,6 +134,7 @@ class SchemaAttribute(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String)
     kind = Column(String)
+    description = Column(String)
     schema_id = Column(Integer, ForeignKey("SCHEMA.id"))
 
 class IngesterLog(Base):
