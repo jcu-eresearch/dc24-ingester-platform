@@ -33,7 +33,7 @@ def obj_to_dict(obj, klass=None):
     if ret["class"] == "schema":
         ret["class"] = ret["for_"] + "_schema"
         del ret["for_"]
-        ret["attributes"] = parameters_to_dict(obj.attributes, value_attr="kind")
+        ret["attributes"] = [{"name":attr.name, "class":attr.kind, "description":attr.description, "units":attr.units} for attr in obj.attributes]
         ret["extends"] = [obj_to_dict(p) for p in obj.extends]
     elif ret["class"] == "region":
         obj.region_points.sort(cmp=lambda a,b: cmp(a.order,b.order))
@@ -133,6 +133,7 @@ class Schema(Base):
     __xmlrpc_class__ = "schema"
     id = Column(Integer, primary_key=True)
     name = Column(String)
+    units = Column(String)
     for_ = Column(String, name="for")
     attributes = orm.relationship("SchemaAttribute")
     repositoryId = Column(String)
@@ -198,6 +199,30 @@ def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="val
         setattr(obj, name_attr, k)
         setattr(obj, value_attr, working[k])
         col_orig.append(obj)
+        
+def merge_schema_lists(col_orig, col_new):
+    """This method updates col_orig removing any that aren't in col_new, updating those that are, and adding new ones
+    using klass as the constructor
+    
+    col_new is a list
+    col_orig is a list
+    """
+    working = dict([(obj.name, obj) for obj in col_new])
+    to_del = []
+    for obj in col_orig:
+        if obj.name in working:
+            # Update
+            obj.description = working[obj.name].description
+            del working[obj.name]
+        else:
+            # Delete pending
+            to_del.append(obj)
+    # Delete
+    for obj in to_del:
+        col_orig.remove(obj)
+    # Add
+    for k in working:
+        col_orig.append(working[k])
 
 def parameters_to_dict(params, name_attr="name", value_attr="value"):
     """Map a parameters set back to a dict"""
@@ -400,8 +425,17 @@ class IngesterServiceDB(IIngesterService):
             raise PersistenceError("Updates are not supported for Schemas")
         
         schema = schema.copy()
-        attrs = schema["attributes"]
+
+        attrs = []
+        for attr in schema["attributes"]:
+            new_attr = SchemaAttribute()
+            new_attr.kind = attr["class"]
+            new_attr.name = attr["name"]
+            new_attr.description = attr["description"] if "description" in attr else None
+            new_attr.units = attr["units"] if "units" in attr else None
+            attrs.append(new_attr)
         del schema["attributes"]
+        
         if "extends" in schema:
             parents = schema["extends"]
             del schema["extends"]
@@ -410,11 +444,11 @@ class IngesterServiceDB(IIngesterService):
         
         schema_ = Schema()
         dict_to_object(schema, schema_)
-        merge_parameters(schema_.attributes, attrs, SchemaAttribute, value_attr="kind")
+        merge_schema_lists(schema_.attributes, attrs)
         
         # Set foreign keys
         if len(parents) > 0:
-            attributes = []+attrs.keys()
+            attributes = [attr.name for attr in schema_.attributes]
             db_parents = s.query(Schema).filter(Schema.id.in_(parents)).all()
             
             if len(db_parents) != len(parents):

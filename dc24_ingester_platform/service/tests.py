@@ -18,11 +18,11 @@ class TestServiceModels(unittest.TestCase):
         shutil.rmtree(self.files)
         
     def test_data_types(self):
-        schema1 = {"class":"dataset_metadata_schema", "attributes": {"file":"file"}}
+        schema1 = {"class":"dataset_metadata_schema", "attributes": [{"name":"file","class":"file"}]}
         schema1a = self.service.persist(schema1)
         self.assertIn("attributes", schema1a)
-        self.assertIn("file", schema1a["attributes"])
-        schema2 = {"class":"data_entry_schema", "attributes": {"file":"file"}}
+        self.assertEquals("file", schema1a["attributes"][0]["name"])
+        schema2 = {"class":"data_entry_schema", "attributes": [{"name":"file","class":"file"}]}
         schema2a = self.service.persist(schema2)
 
         dataset = {"class":"dataset", "schema": schema1a["id"], "data_source":{"class":"test", "param1":"1", "param2":"2"}, "sampling":{"class":"schedule1", "param1":"1", "param2":"2"}}
@@ -54,7 +54,9 @@ class TestServiceModels(unittest.TestCase):
         self.assertEqual(2, len(region1a["region_points"]), "Not 2 region points")
         
     def test_unit(self):
-        unit = {"insert":[{"id":-2, "class":"dataset", "location":-1, "schema": -3, "data_source":{"class":"test", "param1":"1", "param2":"2"}, "sampling":{"class":"schedule1", "param1":"1", "param2":"2"}}, {"id":-1, "latitude":30, "longitude": 20, "class":"location"}, {"id":-3, "attributes":{"file":"file"}, "class":"data_entry_schema"}], "delete":[], "update":[]}
+        unit = {"insert":[{"id":-2, "class":"dataset", "location":-1, "schema": -3, "data_source":{"class":"test", "param1":"1", "param2":"2"}, "sampling":{"class":"schedule1", "param1":"1", "param2":"2"}}, 
+                            {"id":-1, "latitude":30, "longitude": 20, "class":"location"}, 
+                            {"id":-3, "attributes":[{"name":"file", "class":"file"}], "class":"data_entry_schema"}], "delete":[], "update":[]}
         unit2 = self.service.commit(unit)
         for obj in unit2:
             if obj["class"] == "location":
@@ -64,13 +66,13 @@ class TestServiceModels(unittest.TestCase):
 
     def test_schema_persistence(self):
         """This test creates a simple schema hierarchy, and tests updates, etc"""
-        schema1 = self.service.persist({"class":"data_entry_schema", "name": "base1", "attributes":{"file1":"file"}})
-        schema2 = self.service.persist({"class":"data_entry_schema", "name": "child1", "attributes":{"file2":"file"}, "extends":[schema1["id"]]})
-
+        schema1 = self.service.persist({"class":"data_entry_schema", "name": "base1", "attributes":[{"name":"file1","class":"file"}]})
+        schema2 = self.service.persist({"class":"data_entry_schema", "name": "child1", "attributes":[{"name":"file2","class":"file"}], "extends":[schema1["id"]]})
+        
     def test_schema_persistence_unit(self):
         """This test creates a simple schema hierarchy, and tests updates, etc"""
-        unit = {"insert":[{"id":-1, "class":"data_entry_schema", "name": "base1", "attributes":{"file1":"file"}},
-                          {"id":-2, "class":"data_entry_schema", "name": "child1", "attributes":{"file2":"file"}, "extends":[-1]}],
+        unit = {"insert":[{"id":-1, "class":"data_entry_schema", "name": "base1", "attributes":[{"name":"file1","class":"file"}]},
+                          {"id":-2, "class":"data_entry_schema", "name": "child1", "attributes":[{"name":"file2","class":"file"}], "extends":[-1]}],
                 "update":[], "delete":[]}
         unit = self.service.commit(unit)
         
@@ -79,8 +81,9 @@ class TestServiceModels(unittest.TestCase):
 
     def test_schema_persistence_clash(self):
         """This test creates a simple schema hierarchy, that has a field name clash"""
-        schema1 = self.service.persist({"class":"data_entry_schema", "name": "base1", "attributes":{"file1":"file"}})
-        self.assertRaises(PersistenceError, self.service.persist, {"class":"data_entry_schema", "name": "child1", "attributes":{"file1":"file"}, "extends":[schema1["id"]]})
+        schema1 = self.service.persist({"class":"data_entry_schema", "name": "base1", "attributes":[{"name":"file","class":"file"}]})
+        self.assertRaises(PersistenceError, self.service.persist, {"class":"data_entry_schema", "name": "child1", 
+                                                                   "attributes":[{"name":"file","class":"file"}], "extends":[schema1["id"]]})
 
 if __name__ == '__main__':
     unittest.main()
