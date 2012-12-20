@@ -3,7 +3,7 @@
 import unittest
 import tempfile
 import shutil
-from dc24_ingester_platform.service import ingesterdb, repodb
+from dc24_ingester_platform.service import ingesterdb, repodb, PersistenceError
 
 
 class TestServiceModels(unittest.TestCase):
@@ -61,6 +61,26 @@ class TestServiceModels(unittest.TestCase):
                 self.assertEquals(obj["correlationid"], -1)
             elif obj["class"] == "dataset":
                 self.assertEquals(obj["correlationid"], -2)
+
+    def test_schema_persistence(self):
+        """This test creates a simple schema hierarchy, and tests updates, etc"""
+        schema1 = self.service.persist({"class":"data_entry_schema", "name": "base1", "attributes":{"file1":"file"}})
+        schema2 = self.service.persist({"class":"data_entry_schema", "name": "child1", "attributes":{"file2":"file"}, "extends":[schema1["id"]]})
+
+    def test_schema_persistence_unit(self):
+        """This test creates a simple schema hierarchy, and tests updates, etc"""
+        unit = {"insert":[{"id":-1, "class":"data_entry_schema", "name": "base1", "attributes":{"file1":"file"}},
+                          {"id":-2, "class":"data_entry_schema", "name": "child1", "attributes":{"file2":"file"}, "extends":[-1]}],
+                "update":[], "delete":[]}
+        unit = self.service.commit(unit)
+        
+        schema2 = unit[1]
+        self.assertEquals(1, len(schema2["extends"]))
+
+    def test_schema_persistence_clash(self):
+        """This test creates a simple schema hierarchy, that has a field name clash"""
+        schema1 = self.service.persist({"class":"data_entry_schema", "name": "base1", "attributes":{"file1":"file"}})
+        self.assertRaises(PersistenceError, self.service.persist, {"class":"data_entry_schema", "name": "child1", "attributes":{"file1":"file"}, "extends":[schema1["id"]]})
 
 if __name__ == '__main__':
     unittest.main()

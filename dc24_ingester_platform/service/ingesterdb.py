@@ -3,10 +3,12 @@ Created on Oct 5, 2012
 
 @author: nigel
 """
-from dc24_ingester_platform.service import IIngesterService, find_method, method
+from dc24_ingester_platform.service import IIngesterService, find_method, method, PersistenceError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, DECIMAL, Boolean, ForeignKey, DateTime
 import sqlalchemy.orm as orm
+from sqlalchemy.schema import Table
+from sqlalchemy.orm import relationship
 from sqlalchemy import create_engine
 from sqlalchemy.orm.exc import NoResultFound
 import decimal
@@ -32,6 +34,7 @@ def obj_to_dict(obj, klass=None):
         ret["class"] = ret["for_"] + "_schema"
         del ret["for_"]
         ret["attributes"] = parameters_to_dict(obj.attributes, value_attr="kind")
+        ret["extends"] = [obj_to_dict(p) for p in obj.extends]
     elif ret["class"] == "region":
         obj.region_points.sort(cmp=lambda a,b: cmp(a.order,b.order))
         ret["region_points"] = [(point.latitude, point.longitude) for point in obj.region_points]
@@ -120,6 +123,11 @@ class DataSourceParameter(Base):
     value = Column(String)
     dataset_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))
 
+schema_to_schema = Table("schema_to_schema", Base.metadata,
+    Column("child_id", Integer, ForeignKey("SCHEMA.id"), primary_key=True),
+    Column("parent_id", Integer, ForeignKey("SCHEMA.id"), primary_key=True)
+)
+
 class Schema(Base):
     __tablename__ = "SCHEMA"
     __xmlrpc_class__ = "schema"
@@ -128,6 +136,10 @@ class Schema(Base):
     for_ = Column(String, name="for")
     attributes = orm.relationship("SchemaAttribute")
     repositoryId = Column(String)
+    extends = relationship("Schema",
+        secondary=schema_to_schema,
+        primaryjoin=id==schema_to_schema.c.child_id,
+        secondaryjoin=id==schema_to_schema.c.parent_id)
     
 class SchemaAttribute(Base):
     __tablename__ = "SCHEMA_ATTRIBUTE"
@@ -211,7 +223,7 @@ def ingest_order(x, y):
             y_i = i
             break
     return cmp(x_i, y_i)
-    
+
 class IngesterServiceDB(IIngesterService):
     """This service provides DAO operations for the ingester service.
     
@@ -245,9 +257,15 @@ class IngesterServiceDB(IIngesterService):
                 id = obj["id"]
                 cls = obj["class"]
                 del obj["id"]
-                if obj["class"] == "dataset":
+                if cls == "dataset":
                     if obj["location"] < 0: obj["location"] = locs[obj["location"]]
                     if obj["schema"] < 0: obj["schema"] = schemas[obj["schema"]]
+                elif cls.endswith("schema"):
+                    if "extends" in obj:
+                        obj["extends"] = [ schemas[p_id] if p_id<0 else p_id for p_id in obj["extends"]]
+                    else:
+                        obj["extends"] = []
+                        
                 fn = find_method(self, "persist", cls)
                 if fn == None:
                     raise ValueError("Could not find method for", "persist", cls)
@@ -365,22 +383,53 @@ class IngesterServiceDB(IIngesterService):
 
         return self._persist(loc, s)
     
-    @method("persist", "dataset_metadata_schema")    
+    @method("persist", "dataset_metadata_schema")
     def persistDatasetMetaDataSchema(self, schema, session):
         return self._persistSchema(schema, "dataset_metadata", session)
 
-    @method("persist", "data_entry_schema")    
+    @method("persist", "data_entry_schema")
     def persistDataEntrySchema(self, schema, session):
         return self._persistSchema(schema, "data_entry", session)
+
+    @method("persist", "schema")
+    def persistGenericSchema(self, schema, session):
+        return self._persistSchema(schema, "schema", session)
         
     def _persistSchema(self, schema, for_, s):
+        if "id" in schema:
+            raise PersistenceError("Updates are not supported for Schemas")
+        
         schema = schema.copy()
         attrs = schema["attributes"]
         del schema["attributes"]
+        if "extends" in schema:
+            parents = schema["extends"]
+            del schema["extends"]
+        else:
+            parents = []
+        
         schema_ = Schema()
         dict_to_object(schema, schema_)
         merge_parameters(schema_.attributes, attrs, SchemaAttribute, value_attr="kind")
         
+        # Set foreign keys
+        if len(parents) > 0:
+            attributes = []+attrs.keys()
+            db_parents = s.query(Schema).filter(Schema.id.in_(parents)).all()
+            
+            if len(db_parents) != len(parents):
+                raise PersistenceError("Could not find all parents")
+            # Check parents are of the correct type
+            for parent in db_parents:
+                if parent.for_ != "schema" and parent.for_ != for_: 
+                    raise PersistenceError("Parent %d of different type to ingested schema"%(parent.id))
+                for parent_attr in parent.attributes:
+                    if parent_attr.name in attributes:
+                        raise PersistenceError("Duplicate attribute definition %s from parent %d"%(parent_attr.name, parent.id))
+                    attributes.append(parent_attr.name)
+                schema_.extends.append(parent)
+            
+        # Set the schema type
         schema_.for_ = for_
 
         # If the repo has a method to persist the dataset then call it and record the output
@@ -404,7 +453,7 @@ class IngesterServiceDB(IIngesterService):
         except Exception, e:
             logger.error("Error saving: " + str(e))
             session.rollback()
-            raise Exception("Could not save dataset")
+            raise Exception("Could not save dataset:"+ str(e))
             
     def deleteDataset(self, dataset):
         pass
