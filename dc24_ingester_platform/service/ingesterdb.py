@@ -30,6 +30,7 @@ def obj_to_dict(obj, klass=None):
             ret[attr] = float(getattr(obj, attr))
     if klass != None: ret["class"] = klass
     elif hasattr(obj, "__xmlrpc_class__"): ret["class"] = obj.__xmlrpc_class__
+
     if ret["class"] == "schema":
         ret["class"] = ret["for_"] + "_schema"
         del ret["for_"]
@@ -290,7 +291,7 @@ class IngesterServiceDB(IIngesterService):
             # delete first
             # now sort to find objects by order of dependency (location then dataset)
             for obj in unit["insert"]:
-                id = obj["id"]
+                oid = obj["id"]
                 cls = obj["class"]
                 del obj["id"]
                 if cls == "dataset":
@@ -307,11 +308,11 @@ class IngesterServiceDB(IIngesterService):
                     raise ValueError("Could not find method for", "persist", cls)
                 obj = fn(obj, s)
                 if cls == "location":
-                    locs[id] = obj["id"]
+                    locs[oid] = obj["id"]
                 elif cls.endswith("schema"):
-                    schemas[id] = obj["id"]
+                    schemas[oid] = obj["id"]
                         
-                obj["correlationid"] = id
+                obj["correlationid"] = oid
                 ret.append(obj)
             s.commit()
             return ret
@@ -441,7 +442,7 @@ class IngesterServiceDB(IIngesterService):
         return self._persistSchema(schema, "schema", session)
         
     def _persistSchema(self, schema, for_, s):
-        if "id" in schema:
+        if "id" in schema and schema["id"] != None:
             raise PersistenceError("Updates are not supported for Schemas")
         
         schema = schema.copy()
