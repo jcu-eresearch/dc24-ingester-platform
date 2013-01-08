@@ -38,6 +38,13 @@ def obj_to_dict(obj, klass=None):
     elif ret["class"] == "region":
         obj.region_points.sort(cmp=lambda a,b: cmp(a.order,b.order))
         ret["region_points"] = [(point.latitude, point.longitude) for point in obj.region_points]
+    elif ret["class"] == "dataset":
+        if ret["x"] != None:
+            ret["location_offset"] = {"class":"offset", "x":ret["x"], 
+                                      "y":ret["y"], "z":ret["z"]}
+        del ret["x"]
+        del ret["y"]
+        del ret["z"]
     return ret
 
 def dict_to_object(dic, obj):
@@ -90,6 +97,10 @@ class Dataset(Base):
     redboxUri = Column(String)
     processing_script = Column(String(32000))
     repositoryId = Column(String)
+    # FIXME: Move to separate schema
+    x = Column(DECIMAL)
+    y = Column(DECIMAL)
+    z = Column(DECIMAL)
 
 class Sampling(Base):
     """A DataSource is a generic data storage class"""
@@ -348,7 +359,16 @@ class IngesterServiceDB(IIngesterService):
         if dataset.has_key("sampling"): del dataset["sampling"]
         if dataset.has_key("id") and dataset["id"] != None:
             ds = obj_to_dict(session.query(Dataset).filter(Dataset.id == dataset["id"]).one())
+ 
         dict_to_object(dataset, ds)
+        if "location_offset" in dataset and dataset["location_offset"] != None:
+            try:
+                ds.x = dataset["location_offset"]["x"]
+                ds.y = dataset["location_offset"]["y"]
+                ds.z = dataset["location_offset"]["z"]
+            except:
+                raise ValueError("Location offset is invalid")
+
         # Clean up the sampling link
         if ds.data_source == None and data_source != None:
             ds.data_source = DataSource()
