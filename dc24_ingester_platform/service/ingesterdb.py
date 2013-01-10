@@ -13,6 +13,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm.exc import NoResultFound
 import decimal
 import logging
+from dc24_ingester_platform.utils import parse_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -95,8 +96,7 @@ class Dataset(Base):
     schema = Column(Integer, ForeignKey('SCHEMA.id'))
     enabled = Column(Boolean, default=True)
     description = Column(String)
-    redboxUri = Column(String)
-    processing_script = Column(String(32000))
+    redbox_uri = Column(String)
     repositoryId = Column(String)
     # FIXME: Move to separate schema
     x = Column(DECIMAL)
@@ -127,6 +127,7 @@ class DataSource(Base):
     kind = Column(String)
     dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
     parameters = orm.relationship("DataSourceParameter")
+    processing_script = Column(String(32000))
 
 class DataSourceParameter(Base):
     __tablename__ = "DATA_SOURCE_PARAMETERS"
@@ -134,6 +135,7 @@ class DataSourceParameter(Base):
     name = Column(String)
     value = Column(String)
     dataset_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))
+    
 
 schema_to_schema = Table("schema_to_schema", Base.metadata,
     Column("child_id", Integer, ForeignKey("SCHEMA.id"), primary_key=True),
@@ -145,7 +147,6 @@ class Schema(Base):
     __xmlrpc_class__ = "schema"
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    units = Column(String)
     for_ = Column(String, name="for")
     attributes = orm.relationship("SchemaAttribute")
     repositoryId = Column(String)
@@ -159,6 +160,7 @@ class SchemaAttribute(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String)
     kind = Column(String)
+    units = Column(String)
     description = Column(String)
     schema_id = Column(Integer, ForeignKey("SCHEMA.id"))
 
@@ -279,7 +281,8 @@ class IngesterServiceDB(IIngesterService):
         Location.metadata.create_all(self.engine, checkfirst=True)
         self.repo.reset()
 
-    def commit(self, unit):
+    def commit(self, unit, cwd):
+        """Commit a unit of work with file objects based in cwd"""
         s = orm.sessionmaker(bind=self.engine)()
         ret = []
         locs = {}
@@ -306,7 +309,7 @@ class IngesterServiceDB(IIngesterService):
                 fn = find_method(self, "persist", cls)
                 if fn == None:
                     raise ValueError("Could not find method for", "persist", cls)
-                obj = fn(obj, s)
+                obj = fn(obj, s, cwd)
                 if cls == "location":
                     locs[oid] = obj["id"]
                 elif cls.endswith("schema"):
@@ -328,7 +331,7 @@ class IngesterServiceDB(IIngesterService):
         if fn != None:
             s = orm.sessionmaker(bind=self.engine)()
             try:
-                obj = fn(obj, s)
+                obj = fn(obj, s, None)
                 s.commit()
                 return obj
             finally:
@@ -336,7 +339,7 @@ class IngesterServiceDB(IIngesterService):
         raise ValueError("%s not supported"%(cls))
 
     @method("persist", "dataset")
-    def persistDataset(self, dataset, session):
+    def persistDataset(self, dataset, session, cwd):
         """Assumes that we have a copy of the object, so we can change it if required.
         """
         if "location" not in dataset:
@@ -401,7 +404,7 @@ class IngesterServiceDB(IIngesterService):
         return self._getDataset(ds.id, session)
 
     @method("persist", "region")    
-    def persistRegion(self, region, session):
+    def persistRegion(self, region, session, cwd):
         points = region["region_points"]
         del region["region_points"]
         reg = Region()
@@ -419,7 +422,7 @@ class IngesterServiceDB(IIngesterService):
         return self._persist(reg, session)
     
     @method("persist", "location")    
-    def persistLocation(self, location, s):
+    def persistLocation(self, location, s, cwd):
         loc = Location()
         dict_to_object(location, loc)
         # If the repo has a method to persist the dataset then call it and record the output
@@ -430,15 +433,15 @@ class IngesterServiceDB(IIngesterService):
         return self._persist(loc, s)
     
     @method("persist", "dataset_metadata_schema")
-    def persistDatasetMetaDataSchema(self, schema, session):
+    def persistDatasetMetaDataSchema(self, schema, session, cwd):
         return self._persistSchema(schema, "dataset_metadata", session)
 
     @method("persist", "data_entry_schema")
-    def persistDataEntrySchema(self, schema, session):
+    def persistDataEntrySchema(self, schema, session, cwd):
         return self._persistSchema(schema, "data_entry", session)
 
     @method("persist", "schema")
-    def persistGenericSchema(self, schema, session):
+    def persistGenericSchema(self, schema, session, cwd):
         return self._persistSchema(schema, "schema", session)
         
     def _persistSchema(self, schema, for_, s):
@@ -640,20 +643,20 @@ class IngesterServiceDB(IIngesterService):
         finally:
             s.close()
             
-    def persistSamplerState(self, id, state):
-        self.samplers[id] = state
+    def persistSamplerState(self, s_id, state):
+        self.samplers[s_id] = state
     
-    def getSamplerState(self, id):
+    def getSamplerState(self, s_id):
         if id not in self.samplers: return {}
-        return self.samplers[id]
+        return self.samplers[s_id]
 
-    def persistDataSourceState(self, id, state):
-        self.data_source[id] = state
-    
-    def getDataSourceState(self, id):
-        if id not in self.data_source: return {}
-        return self.data_source[id]
-            
+    def persistDataSourceState(self, ds_id, state):
+        self.data_source[ds_id] = state
+
+    def getDataSourceState(self, ds_id):
+        if ds_id not in self.data_source: return {}
+        return self.data_source[ds_id]
+
     def findDatasets(self, **kwargs):
         """Find all datasets with the provided attributes"""
         session = orm.sessionmaker(bind=self.engine)()
@@ -669,6 +672,12 @@ class IngesterServiceDB(IIngesterService):
     def findObservations(self, d_id):
         return self.repo.findObservations(self.getDataset(d_id))
 
+    @method("persist", "data_entry")
+    def persistDataEntry(self, data_entry, session, cwd):
+        dataset_id = data_entry["dataset"]
+        timestamp = parse_timestamp(data_entry["timestamp"])
+        return self.persistObservation(dataset_id, timestamp, data_entry["data"], None)
+
     def persistObservation(self, dataset, time, obs, cwd):
         """Persist the observation to the repository. This method is also responsible for 
         notifying the ingester of any new data, such that triggers can be invoked.
@@ -680,6 +689,7 @@ class IngesterServiceDB(IIngesterService):
         schema = self.getSchema(dataset["schema"])
         identifier = self.repo.persistObservation(dataset, schema, time, obs, cwd)
         self.ingester.notifyNewObservation(identifier, dataset, obs, cwd)
+        return obj_to_dict(identifier)
 
     def runIngester(self, d_id):
         """Run the ingester for the given dataset ID"""
