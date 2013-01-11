@@ -65,11 +65,7 @@ class MockService(IIngesterService):
         self.logs[dataset_id].append( (timestamp, level, message) )
 
 class MockSource(DataSource):
-    def __init__(self, source, state, parameters):
-        self.source = source
-        self.state = state
-        self.parameters = parameters
-        
+    pass
 
 class MockSourceCSV1(MockSource):
     """This simple data source will create a CSV file with 2 lines"""
@@ -96,7 +92,9 @@ class TestIngesterProcess(unittest.TestCase):
 
     def data_source_factory(self, source, state, parameters):
         if source["class"] == "csv1":
-            return MockSourceCSV1(source, state, parameters)
+            args = dict(source)
+            del args["class"]
+            return MockSourceCSV1(state, parameters, **args)
         else:
             return create_data_source(source, state, parameters)
         
@@ -125,7 +123,7 @@ def process(cwd, data_entry):
             ret.append( (2,{"timestamp":format_timestamp(datetime.datetime.now()), "a":{"path":l[1].strip()}}) )
     return ret
 """            
-        dataset = {"id":1, "data_source":{"class":"csv1"}, "processing_script":script}
+        dataset = {"id":1, "data_source":{"class":"csv1", "processing_script":script}}
         dataset2 = {"id":2}
         self.service.datasets[1] = dataset
         self.service.datasets[2] = dataset2

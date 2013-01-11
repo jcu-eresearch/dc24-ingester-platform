@@ -77,8 +77,8 @@ class IngesterEngine(object):
                 
                 data_entries = data_source.fetch(cwd)
                 
-                if "processing_script" in dataset:
-                    data_entries = run_script(dataset["processing_script"], cwd, data_entries)
+                if hasattr(data_source, "processing_script") and data_source.processing_script != None:
+                    data_entries = run_script(data_source.processing_script, cwd, data_entries)
                 
                 for entry in data_entries:
                     if isinstance(entry, tuple):

@@ -19,6 +19,11 @@ class DataSource(object):
     state = None # Holds the state of the Sampler. This is persisted by the ingester.
     
     def __init__(self, state, parameters, **kwargs):
+        """
+        :param state: State information left over from the last run
+        :param parameters: Parameters specific to this current run, ie, triggering event IDs
+        :param **kwargs: All the data source configuration information
+        """
         self.state = state
         self.parameters = parameters
         for k in kwargs:
