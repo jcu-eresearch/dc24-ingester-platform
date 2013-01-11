@@ -3,6 +3,7 @@ Created on Oct 5, 2012
 
 @author: nigel
 """
+from dc24_ingester_platform.utils import format_timestamp, parse_timestamp
 from dc24_ingester_platform.service import IRepositoryService
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, DECIMAL, Boolean, ForeignKey, DateTime
@@ -99,8 +100,9 @@ class RepositoryDB(IRepositoryService):
         Observation.metadata.create_all(self.engine, checkfirst=True)
     
     def persistObservation(self, dataset, schema, timestamp, attrs, cwd):
-        schema = schema["attributes"]
+        schema = dict( [ (s["name"], s) for s in schema["attributes"] ] )
         # Check the attributes are actually in the schema
+        
         for k in attrs:
             if k not in schema:
                 raise ValueError("%s is not in the schema"%(k))
@@ -116,14 +118,15 @@ class RepositoryDB(IRepositoryService):
             
             # Copy all files into place
             for k in attrs:
-                if schema[k] == "file":
+                if schema[k]["class"] == "file":
                     dest_file_name = os.path.join(self.repo, "%d-%s"%(obs.id, k))
-                    shutil.copyfile(os.path.join(cwd, attrs[k]), dest_file_name)
+                    shutil.copyfile(os.path.join(cwd, attrs[k]["path"]), dest_file_name)
                     attrs[k] = dest_file_name
             merge_parameters(obs.attrs, attrs, ObservationAttr)
             s.merge(obs)
             s.flush()
             s.commit()
             
+            return {"class":"data_entry", "dataset":obs.dataset, "id":obs.id, "timestamp": format_timestamp(obs.timestamp)}
         finally:
             s.close()

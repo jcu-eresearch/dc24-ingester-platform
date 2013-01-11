@@ -35,6 +35,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """ Insert the passed object into the ingester platform
         """
         try:
+            print obj
             return self.service.persist(obj)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
@@ -74,6 +75,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """
         try:
             cwd, unit = self.transactions[int(transaction_id)]
+            print unit
             return self.service.commit(unit, cwd)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))

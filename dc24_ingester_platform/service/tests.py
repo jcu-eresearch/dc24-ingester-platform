@@ -57,7 +57,7 @@ class TestServiceModels(unittest.TestCase):
         unit = {"insert":[{"id":-2, "class":"dataset", "location":-1, "schema": -3, "data_source":{"class":"test", "param1":"1", "param2":"2"}, "sampling":{"class":"schedule1", "param1":"1", "param2":"2"}}, 
                             {"id":-1, "latitude":30, "longitude": 20, "class":"location"}, 
                             {"id":-3, "attributes":[{"name":"file", "class":"file"}], "class":"data_entry_schema"}], "delete":[], "update":[]}
-        unit2 = self.service.commit(unit)
+        unit2 = self.service.commit(unit, None)
         for obj in unit2:
             if obj["class"] == "location":
                 self.assertEquals(obj["correlationid"], -1)
@@ -74,7 +74,7 @@ class TestServiceModels(unittest.TestCase):
         unit = {"insert":[{"id":-1, "class":"data_entry_schema", "name": "base1", "attributes":[{"name":"file1","class":"file"}]},
                           {"id":-2, "class":"data_entry_schema", "name": "child1", "attributes":[{"name":"file2","class":"file"}], "extends":[-1]}],
                 "update":[], "delete":[]}
-        unit = self.service.commit(unit)
+        unit = self.service.commit(unit, None)
         
         schema2 = unit[1]
         self.assertEquals(1, len(schema2["extends"]))

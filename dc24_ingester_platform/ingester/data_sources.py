@@ -57,7 +57,7 @@ class PullDataSource(DataSource):
             self.state["lasttime"] = timestamp
         finally:
             if f_in != None: f_in.close()
-        return [{"time":timestamp, self.field: "outputfile"}]
+        return [{"timestamp":timestamp, self.field: {"path":"outputfile", "mime_type":"" }}]
 
 class PushDataSource(DataSource):
     """Scan an incoming directory for new data. The filename encodes
@@ -85,7 +85,7 @@ class PushDataSource(DataSource):
             new_filename = "file-"+f_name
             os.rename(os.path.join(self.parameters["path"], f_name), os.path.join(cwd, new_filename))
             timestamp = format_timestamp(datetime.datetime.utcfromtimestamp(int(m.group(1))))
-            ret.append({"time":timestamp, self.field: new_filename})
+            ret.append({"timestamp":timestamp, self.field: {"path":new_filename, "mime_type":"" }})
         return ret
 
 class DatasetDataSource(DataSource):

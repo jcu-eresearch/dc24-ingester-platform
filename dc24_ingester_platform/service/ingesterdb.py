@@ -676,20 +676,21 @@ class IngesterServiceDB(IIngesterService):
     def persistDataEntry(self, data_entry, session, cwd):
         dataset_id = data_entry["dataset"]
         timestamp = parse_timestamp(data_entry["timestamp"])
-        return self.persistObservation(dataset_id, timestamp, data_entry["data"], None)
+        dataset = self.getDataset(dataset_id)
+        return self.persistObservation(dataset, timestamp, data_entry["data"], None)
 
-    def persistObservation(self, dataset, time, obs, cwd):
+    def persistObservation(self, dataset, timestamp, obs, cwd):
         """Persist the observation to the repository. This method is also responsible for 
         notifying the ingester of any new data, such that triggers can be invoked.
         :param dataset: A dataset dict for the target dataset
-        :param time: DateTime representation of the timestamp
+        :param timestamp: DateTime representation of the timestamp
         :param obs: Dict of attributes to ingest
         :param cwd: Working directory for this ingest
         """
         schema = self.getSchema(dataset["schema"])
-        identifier = self.repo.persistObservation(dataset, schema, time, obs, cwd)
+        identifier = self.repo.persistObservation(dataset, schema, timestamp, obs, cwd)
         self.ingester.notifyNewObservation(identifier, dataset, obs, cwd)
-        return obj_to_dict(identifier)
+        return identifier
 
     def runIngester(self, d_id):
         """Run the ingester for the given dataset ID"""

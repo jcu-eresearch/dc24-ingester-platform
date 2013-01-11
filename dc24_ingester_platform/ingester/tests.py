@@ -28,7 +28,7 @@ class TestScriptModels(unittest.TestCase):
         file1 = "1\n2\n"
         with open(os.path.join(self.cwd, "file1"), "w") as f:
             f.write(file1)
-        data_entry = {"time":format_timestamp(datetime.datetime.now()), "file1":"file1"}
+        data_entry = {"timestamp":format_timestamp(datetime.datetime.now()), "file1":{"path":"file1"}}
 
         script = """def process(cwd, data_entry):
     return [data_entry, None, None]
@@ -77,7 +77,7 @@ class MockSourceCSV1(MockSource):
         with open(os.path.join(cwd, "file"), "w") as f:
             f.write("2,55\n3,2\n")
             
-        return [{"time":format_timestamp(datetime.datetime.now()), "file":"file"}]
+        return [{"timestamp":format_timestamp(datetime.datetime.now()), "file":{"path":"file"}}]
 
 class TestIngesterProcess(unittest.TestCase):
     def setUp(self):
@@ -118,11 +118,11 @@ from dc24_ingester_platform.utils import *
 def process(cwd, data_entry):
     data_entry = data_entry[0]
     ret = [data_entry]
-    with open(os.path.join(cwd, data_entry["file"])) as f:
+    with open(os.path.join(cwd, data_entry["file"]["path"])) as f:
         for l in f.readlines():
             l = l.strip().split(",")
             if len(l) != 2: continue
-            ret.append( (2,{"time":format_timestamp(datetime.datetime.now()), "a":l[1].strip()}) )
+            ret.append( (2,{"timestamp":format_timestamp(datetime.datetime.now()), "a":{"path":l[1].strip()}}) )
     return ret
 """            
         dataset = {"id":1, "data_source":{"class":"csv1"}, "processing_script":script}
