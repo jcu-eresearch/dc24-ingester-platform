@@ -35,7 +35,6 @@ class ManagementService(xmlrpc.XMLRPC):
         """ Insert the passed object into the ingester platform
         """
         try:
-            print obj
             return self.service.persist(obj)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
@@ -75,7 +74,6 @@ class ManagementService(xmlrpc.XMLRPC):
         """
         try:
             cwd, unit = self.transactions[int(transaction_id)]
-            print unit
             return self.service.commit(unit, cwd)
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
@@ -196,21 +194,33 @@ class DataController(Resource):
             request.setResponseCode(400)
             return "Invalid request"
         transaction_id = request.postpath[0]
-        obj_id = request.postpath[1]
+        obj_id = request.postpath[1] # <object class>-<object id>
         attr = request.postpath[2]
         
         if not int(transaction_id) in self.xmlrpc.transactions:
             request.setResponseCode(400)
             return "Transaction not found"
         
-        transaction_path = self.xmlrpc.transactions[int(transaction_id)]
+        transaction_path, unit = self.xmlrpc.transactions[int(transaction_id)]
         obj_path = os.path.join(transaction_path, obj_id)
         if not os.path.exists(obj_path):
             os.mkdir(obj_path)
+        attr_rel_path = os.path.join(obj_id, attr)
         attr_path = os.path.join(obj_path, attr)
         with open(attr_path, "wb") as f:
             shutil.copyfileobj(request.content, f)
         
+        class_, oid = obj_id.split(":")
+        
+        # Update the path
+        done = False
+        for sets in ["update", "insert"]:
+            for item in unit[sets]:
+                if class_ == item["class"] and int(oid) == item["id"]:
+                    item["data"][attr]["path"] = attr_rel_path
+                    done = True
+                    break
+            if done: break
         return "OK"
 
 def makeServer(staging_dir, service):

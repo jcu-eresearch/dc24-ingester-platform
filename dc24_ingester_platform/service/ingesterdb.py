@@ -677,7 +677,7 @@ class IngesterServiceDB(IIngesterService):
         dataset_id = data_entry["dataset"]
         timestamp = parse_timestamp(data_entry["timestamp"])
         dataset = self.getDataset(dataset_id)
-        return self.persistObservation(dataset, timestamp, data_entry["data"], None)
+        return self.persistObservation(dataset, timestamp, data_entry["data"], cwd)
 
     def persistObservation(self, dataset, timestamp, obs, cwd):
         """Persist the observation to the repository. This method is also responsible for 
