@@ -38,6 +38,20 @@ def dict_to_object(dic, obj):
         if attr.startswith("_"): continue
         if dic.has_key(attr): setattr(obj, attr, dic[attr])
 
+class DatasetMetadata(Base):
+    __tablename__ = "DATASET_METADATA"
+    id = Column(Integer, primary_key=True)
+    dataset = Column(Integer)
+    schema = Column(Integer)
+    attrs = orm.relationship("DatasetMetadataAttr")
+
+class DatasetMetadataAttr(Base):
+    __tablename__ = "DATASET_METADATA_ATTRS"
+    id = Column(Integer, primary_key=True)
+    metadata_entry = Column(Integer, ForeignKey('DATASET_METADATA.id'))
+    name = Column(String)
+    value = Column(String)
+    
 class Observation(Base):
     __tablename__ = "OBSERVATIONS"
     id = Column(Integer, primary_key=True)
@@ -49,6 +63,20 @@ class ObservationAttr(Base):
     __tablename__ = "OBSERVATION_ATTRS"
     id = Column(Integer, primary_key=True)
     observation = Column(Integer, ForeignKey('OBSERVATIONS.id'))
+    name = Column(String)
+    value = Column(String)
+
+class DataEntryMetadata(Base):
+    __tablename__ = "DATA_ENTRY_METADATA"
+    id = Column(Integer, primary_key=True)
+    data_entry = Column(Integer)
+    schema = Column(Integer)
+    attrs = orm.relationship("DataEntryMetadataAttr")
+
+class DataEntryMetadataAttr(Base):
+    __tablename__ = "DATA_ENTRY_METADATA_ATTRS"
+    id = Column(Integer, primary_key=True)
+    metadata_entry = Column(Integer, ForeignKey('DATA_ENTRY_METADATA.id'))
     name = Column(String)
     value = Column(String)
     
@@ -99,13 +127,26 @@ class RepositoryDB(IRepositoryService):
         Observation.metadata.drop_all(self.engine, checkfirst=True)
         Observation.metadata.create_all(self.engine, checkfirst=True)
     
-    def persistObservation(self, dataset, schema, timestamp, attrs, cwd):
-        schema = dict( [ (s["name"], s) for s in schema["attributes"] ] )
-        # Check the attributes are actually in the schema
-        
+    def copy_files(self, attrs, schema, cwd, obj, obj_type):
+        """Copy file attributes into place"""
+        obj_path = os.path.join(self.repo, obj_type)
+        if not os.path.exists(obj_path): os.makedirs(obj_path)
+        for k in attrs:
+            if schema[k]["class"] == "file":
+                dest_file_name = os.path.join(obj_path, "%d-%s"%(obj.id, k))
+                shutil.copyfile(os.path.join(cwd, attrs[k]["path"]), dest_file_name)
+                attrs[k] = dest_file_name
+    
+    def validate_schema(self, attrs, schema):
+        """Validate the attributes against the schema"""
         for k in attrs:
             if k not in schema:
                 raise ValueError("%s is not in the schema"%(k))
+    
+    def persistObservation(self, dataset, schema, timestamp, attrs, cwd):
+        schema = dict( [ (s["name"], s) for s in schema["attributes"] ] )
+        # Check the attributes are actually in the schema
+        self.validate_schema(attrs, schema)
         
         s = orm.sessionmaker(bind=self.engine)()
         try:
@@ -117,16 +158,65 @@ class RepositoryDB(IRepositoryService):
             s.flush()
             
             # Copy all files into place
-            for k in attrs:
-                if schema[k]["class"] == "file":
-                    dest_file_name = os.path.join(self.repo, "%d-%s"%(obs.id, k))
-                    shutil.copyfile(os.path.join(cwd, attrs[k]["path"]), dest_file_name)
-                    attrs[k] = dest_file_name
+            self.copy_files(attrs, schema, cwd, obs, "data_entry")
+            
             merge_parameters(obs.attrs, attrs, ObservationAttr)
             s.merge(obs)
             s.flush()
             s.commit()
             
             return {"class":"data_entry", "dataset":obs.dataset, "id":obs.id, "timestamp": format_timestamp(obs.timestamp)}
+        finally:
+            s.close()
+            
+    def persistDatasetMetadata(self, dataset, schema, attrs, cwd):
+        schema_attrs = dict( [ (s["name"], s) for s in schema["attributes"] ] )
+        # Check the attributes are actually in the schema
+        self.validate_schema(attrs, schema_attrs)
+        
+        s = orm.sessionmaker(bind=self.engine)()
+        try:
+            obs = DatasetMetadata()
+            obs.dataset = dataset["id"]
+            obs.schema = schema["id"]
+            
+            s.add(obs)
+            s.flush()
+            
+            # Copy all files into place
+            self.copy_files(attrs, schema_attrs, cwd, obs, "dataset_metadata")
+            
+            merge_parameters(obs.attrs, attrs, DatasetMetadataAttr)
+            s.merge(obs)
+            s.flush()
+            s.commit()
+            
+            return {"class":"dataset_metadata_entry", "object_id":obs.dataset, "metadata_schema":schema["id"], "id":obs.id}
+        finally:
+            s.close()
+            
+    def persistDataEntryMetadata(self, data_entry, schema, attrs, cwd):
+        schema_attrs = dict( [ (s["name"], s) for s in schema["attributes"] ] )
+        # Check the attributes are actually in the schema
+        self.validate_schema(attrs, schema_attrs)
+        
+        s = orm.sessionmaker(bind=self.engine)()
+        try:
+            obs = DataEntryMetadata()
+            obs.data_entry = data_entry["id"]
+            obs.schema = schema["id"]
+            
+            s.add(obs)
+            s.flush()
+            
+            # Copy all files into place
+            self.copy_files(attrs, schema_attrs, cwd, obs, "data_entry_metadata")
+            
+            merge_parameters(obs.attrs, attrs, DataEntryMetadataAttr)
+            s.merge(obs)
+            s.flush()
+            s.commit()
+            
+            return {"class":"data_entry_metadata_entry", "object_id":obs.dataset, "metadata_schema":schema["id"], "id":obs.id}
         finally:
             s.close()

@@ -135,7 +135,6 @@ class DataSourceParameter(Base):
     name = Column(String)
     value = Column(String)
     dataset_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))
-    
 
 schema_to_schema = Table("schema_to_schema", Base.metadata,
     Column("child_id", Integer, ForeignKey("SCHEMA.id"), primary_key=True),
@@ -293,30 +292,35 @@ class IngesterServiceDB(IIngesterService):
             unit["update"].sort(ingest_order)
             # delete first
             # now sort to find objects by order of dependency (location then dataset)
-            for obj in unit["insert"]:
-                oid = obj["id"]
-                cls = obj["class"]
-                del obj["id"]
-                if cls == "dataset":
-                    if obj["location"] < 0: obj["location"] = locs[obj["location"]]
-                    if obj["schema"] < 0: obj["schema"] = schemas[obj["schema"]]
-                elif cls.endswith("schema"):
-                    if "extends" in obj:
-                        obj["extends"] = [ schemas[p_id] if p_id<0 else p_id for p_id in obj["extends"]]
-                    else:
-                        obj["extends"] = []
-                        
-                fn = find_method(self, "persist", cls)
-                if fn == None:
-                    raise ValueError("Could not find method for", "persist", cls)
-                obj = fn(obj, s, cwd)
-                if cls == "location":
-                    locs[oid] = obj["id"]
-                elif cls.endswith("schema"):
-                    schemas[oid] = obj["id"]
-                        
-                obj["correlationid"] = oid
-                ret.append(obj)
+            for unit_type in ("insert", "update"):
+                for obj in unit[unit_type]:
+                    oid = obj["id"]
+                    cls = obj["class"]
+                    del obj["id"]
+                    if cls == "dataset":
+                        if obj["location"] < 0: obj["location"] = locs[obj["location"]]
+                        if obj["schema"] < 0: obj["schema"] = schemas[obj["schema"]]
+                    elif cls.endswith("schema"):
+                        if "extends" in obj:
+                            obj["extends"] = [ schemas[p_id] if p_id<0 else p_id for p_id in obj["extends"]]
+                        else:
+                            obj["extends"] = []
+                            
+                    fn = find_method(self, "persist", cls)
+                    if fn == None:
+                        raise ValueError("Could not find method for", "persist", cls)
+                    obj = fn(obj, s, cwd)
+                    if cls == "location":
+                        locs[oid] = obj["id"]
+                    elif cls.endswith("schema"):
+                        schemas[oid] = obj["id"]
+                            
+                    obj["correlationid"] = oid
+                    ret.append(obj)
+            for obj_id in unit["enable"]:
+                self.enableDataset(obj_id)
+            for obj_id in unit["disable"]:
+                self.disableDataset(obj_id)
             s.commit()
             return ret
         finally:
@@ -362,7 +366,7 @@ class IngesterServiceDB(IIngesterService):
         if dataset.has_key("data_source"): del dataset["data_source"]
         if dataset.has_key("sampling"): del dataset["sampling"]
         if dataset.has_key("id") and dataset["id"] != None:
-            ds = obj_to_dict(session.query(Dataset).filter(Dataset.id == dataset["id"]).one())
+            ds = session.query(Dataset).filter(Dataset.id == dataset["id"]).one()
  
         dict_to_object(dataset, ds)
         if "location_offset" in dataset and dataset["location_offset"] != None:
@@ -696,3 +700,16 @@ class IngesterServiceDB(IIngesterService):
         """Run the ingester for the given dataset ID"""
         self.ingester.queue(self.getDataset(d_id))
 
+    @method("persist", "dataset_metadata_entry")
+    def persistDatasetMetadata(self, dataset_metadata, session, cwd):
+        dataset_id = dataset_metadata["object_id"]
+        dataset = self.getDataset(dataset_id)
+        schema = self.getSchema(dataset_metadata["metadata_schema"])
+        return self.repo.persistDatasetMetadata(dataset, schema, dataset_metadata["data"], cwd)
+
+    @method("persist", "data_entry_metadata_entry")
+    def persistDataEntryMetadata(self, data_entry_metadata, session, cwd):
+        dataset_id = data_entry_metadata["object_id"]
+        dataset = self.getDataset(dataset_id)
+        schema = self.getSchema(data_entry_metadata["metadata_schema"])
+        return self.repo.persistDatasetMetadata(dataset, schema, data_entry_metadata["data"], cwd)
