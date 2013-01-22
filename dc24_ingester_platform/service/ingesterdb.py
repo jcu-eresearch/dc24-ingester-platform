@@ -713,3 +713,30 @@ class IngesterServiceDB(IIngesterService):
         dataset = self.getDataset(dataset_id)
         schema = self.getSchema(data_entry_metadata["metadata_schema"])
         return self.repo.persistDatasetMetadata(dataset, schema, data_entry_metadata["data"], cwd)
+
+    def search(self, object_type, criteria=None):
+        where = []
+        obj_type = None
+        if object_type == "dataset":
+            obj_type = Dataset
+        elif object_type == "data_entry_schema":
+            obj_type = Schema
+            where.append(Schema.for_ == "data_entry")
+        elif object_type == "dataset_metadata_schema":
+            obj_type = Schema
+            where.append(Schema.for_ == "dataset_metadata")
+        elif object_type == "location":
+            obj_type = Location
+        if obj_type == None:
+            raise ValueError("object_type==%s is not supported"%object_type)
+        
+        s = orm.sessionmaker(bind=self.engine)()
+        try:
+            objs = s.query(obj_type).filter(*where).all()
+            ret_list = []
+            for obj in objs:
+                ret_list.append(obj_to_dict(obj))
+            return ret_list
+        finally:
+            s.close()
+    

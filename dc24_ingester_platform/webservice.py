@@ -82,6 +82,12 @@ class ManagementService(xmlrpc.XMLRPC):
         finally:
             self.cleanup_transaction(transaction_id)
 
+    def xmlrpc_search(self, object_type, criteria):
+        try:
+            return self.service.search(object_type, criteria)
+        except Exception, e:
+            raise xmlrpc.Fault(1, str(e))
+
     def xmlrpc_getLocation(self, loc_id):
         """Retrieve a location by id
         """

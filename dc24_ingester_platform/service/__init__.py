@@ -43,6 +43,8 @@ class IIngesterService(object):
         raise NotImplementedError()
     def persistObservation(self, dataset, time, obs, cwd):
         raise NotImplementedError()
+    def search(self, object_type, criteria=None):
+        raise NotImplementedError()
 
 def method(verb, cls):
     """Annotation for identifying which class methods are responsible
