@@ -203,20 +203,22 @@ class DataController(Resource):
         obj_id = request.postpath[1] # <object class>-<object id>
         attr = request.postpath[2]
         
+        class_, oid = obj_id.split(":")
+        
+        obj_id_path = "%s-%s"%(class_, oid)
+        
         if not int(transaction_id) in self.xmlrpc.transactions:
             request.setResponseCode(400)
             return "Transaction not found"
         
         transaction_path, unit = self.xmlrpc.transactions[int(transaction_id)]
-        obj_path = os.path.join(transaction_path, obj_id)
+        obj_path = os.path.join(transaction_path, obj_id_path)
         if not os.path.exists(obj_path):
             os.mkdir(obj_path)
-        attr_rel_path = os.path.join(obj_id, attr)
+        attr_rel_path = os.path.join(obj_id_path, attr)
         attr_path = os.path.join(obj_path, attr)
         with open(attr_path, "wb") as f:
             shutil.copyfileobj(request.content, f)
-        
-        class_, oid = obj_id.split(":")
         
         # Update the path
         done = False
