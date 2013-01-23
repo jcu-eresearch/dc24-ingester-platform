@@ -26,7 +26,7 @@ from dc24_ingester_platform import service as platform_service
 application = service.Application("DC24 Ingester Platform")
 service_facade = platform_service.makeService("sqlite:///ingester.db", {"db":"sqlite:///repo.db","files":"repo"})
 root = Resource()
-root.putChild("api", webservice.makeServer(service_facade))
+root.putChild("api", webservice.makeServer(tempfile.mkdtemp(), service_facade))
 root.putChild("push", push.makePushService(service_facade, os.path.join(tempfile.gettempdir(), "push")))
 service = internet.TCPServer(8080, server.Site(root))
 service.setServiceParent(application)
