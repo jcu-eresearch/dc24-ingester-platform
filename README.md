@@ -16,6 +16,9 @@ The project is implemented using Twisted.
 4. Now you can run the client, currently in an IPython instance (see below)
 5. To run the unit tests use **./bin/tests**
 
+Additionally, you may need to clone, and **python setup.py develop** install
+the API client into the this projects virtual env.
+
 ### Client example usage
 
 ```python
