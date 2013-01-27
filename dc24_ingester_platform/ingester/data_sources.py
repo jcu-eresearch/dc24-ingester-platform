@@ -6,10 +6,13 @@ Created on Nov 1, 2012
 import os
 import re
 import datetime
+import calendar
 import shutil
 import logging
 import urllib2
+import urlparse
 from dc24_ingester_platform.utils import *
+from dc24_ingester_platform import IngesterError
 
 logger = logging.getLogger("dc24_ingester_platform.ingester.data_sources")
 
@@ -43,13 +46,72 @@ class PullDataSource(DataSource):
     field. It stores the last timestamp to determine if there is new data
     """
     field = None # The field to ingest into
+    recursive = False
     def fetch(self, cwd):
         """Fetch from a URI using urllib2
         
         :param cwd: working directory to place binary data
         :returns: dict containing the data to be ingested
         """
-        req = urllib2.Request(self.uri)
+        url = urlparse.urlparse(self.url)
+        if not self.recursive:
+            return self.fetch_single(cwd)
+        elif url.scheme == "ftp":
+            return self.fetch_ftp(cwd)
+        elif url.scheme in ("http", "https"):
+            return self.fetch_http(cwd)
+        else:
+            raise IngesterError("This scheme is not supported: %s"%url.scheme)
+
+    def fetch_http(self, cwd):
+        """Recursively fetch from an HTTP server.
+        """ 
+        RE_A = re.compile("href=\"(\./){0,1}([0-9A-Za-z\-_\.\:]+)\"")
+        req = urllib2.Request(self.url)
+        ret = []
+        
+        since = None
+        new_since = None
+        if "lasttime" in self.state:
+            since = eut.formatdate(calendar.timegm(parse_timestamp(self.state["lasttime"]).timetuple()), usegmt=True)
+        
+        f_in = None
+        try:
+            f_index = urllib2.urlopen(req)
+            index_page = f_index.read()
+            f_index.close()
+            urls = RE_A.findall(index_page)
+            found = 0
+            
+            for url_part in urls:
+                url = urlparse.urljoin(self.url, url_part[0]+url_part[1])
+                req = urllib2.Request(url)
+                if since != None: req.add_header("If-Modified-Since", since)
+                try:
+                    f_in = urllib2.urlopen(req)
+                    f_out_name = os.path.join(cwd, "outputfile%d"%found)
+                    timestamp = format_timestamp(f_in.headers["Last-Modified"])
+                    with file(f_out_name, "wb") as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                    ret.append({"timestamp":timestamp, self.field: {"path":"outputfile%d"%found, "mime_type":"" }})
+                    found += 1
+                    
+                    timestamp_ = parse_timestamp(timestamp)
+                    if new_since == None or timestamp_ > new_since:
+                        new_since = timestamp_
+                    
+                except urllib2.HTTPError, e:
+                    if e.code == 304: 
+                        continue
+        finally:
+            if f_in != None: f_in.close()
+            
+        self.state["lasttime"] = format_timestamp(new_since) if new_since != None else None
+        return ret
+        
+    def fetch_single(self, cwd):
+        """Fetch a single resource from a URL"""
+        req = urllib2.Request(self.url)
         f_out_name = os.path.join(cwd, "outputfile")
         f_in = None
         try:
