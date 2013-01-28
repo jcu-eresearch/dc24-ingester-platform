@@ -316,6 +316,7 @@ def dao_to_domain(dao):
     else:
         raise PersistenceError("Could not convert DAO object to domain: %s"%(str(type(dao))))
     return domain
+
 class IngesterServiceDB(IIngesterService):
     """This service provides DAO operations for the ingester service.
     
@@ -356,8 +357,9 @@ class IngesterServiceDB(IIngesterService):
                     if obj.id < 0: obj.id = None
                     cls = obj.__xmlrpc_class__
                     if cls == "dataset":
-                        if obj.location < 0: obj.loction = locs[obj.location]
+                        if obj.location < 0: obj.location = locs[obj.location]
                         if obj.schema < 0: obj.schema = schemas[obj.schema]
+                        
                     elif cls.endswith("schema"):
                         obj.extends = [ schemas[p_id] if p_id<0 else p_id for p_id in obj.extends]
                             
@@ -401,14 +403,15 @@ class IngesterServiceDB(IIngesterService):
         if dataset.location == None:
             raise ValueError("Location must be set")
         # Check schema is of the correct type
+
         try:
             location = session.query(Location).filter(Location.id == dataset.location).one()
         except NoResultFound, e:
-            raise ValueError("Provided location not found")
+            raise ValueError("Provided location not found: %d"%dataset.location)
         try:
             schema = session.query(Schema).filter(Schema.id == dataset.schema).one()
         except NoResultFound, e:
-            raise ValueError("Provided schema not found")
+            raise ValueError("Provided schema not found: %d"%dataset.schema)
         if schema.for_ != "data_entry":
             raise ValueError("The schema must be for a data_entry")
         
@@ -508,7 +511,6 @@ class IngesterServiceDB(IIngesterService):
             new_attr.description = attr.description
             new_attr.units = attr.units
             attrs.append(new_attr)
-        
 
         parents = list(schema.extends)
         
@@ -762,7 +764,7 @@ class IngesterServiceDB(IIngesterService):
             objs = s.query(obj_type).filter(*where).all()
             ret_list = []
             for obj in objs:
-                ret_list.append(obj_to_dict(obj))
+                ret_list.append(dao_to_domain(obj))
             return ret_list
         finally:
             s.close()
