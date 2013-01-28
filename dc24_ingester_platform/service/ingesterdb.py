@@ -22,10 +22,13 @@ import jcudc24ingesterapi.models.data_sources
 import jcudc24ingesterapi.schemas.data_entry_schemas
 import jcudc24ingesterapi.schemas.data_types
 from jcudc24ingesterapi.models.locations import LocationOffset
+from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
 
 logger = logging.getLogger(__name__)
 
 Base = declarative_base()
+
+domain_marshaller = Marshaller()
 
 def obj_to_dict(obj, klass=None):
     """Maps an object of base class BaseManagementObject to a dict.
@@ -193,33 +196,36 @@ class DataSourceState(Base):
     value = Column(String)
     dataset_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))   
     
-def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="value"):
+def merge_parameters(src, dst, klass, name_attr="name", value_attr="value", ignore_props=[]):
     """This method updates col_orig removing any that aren't in col_new, updating those that are, and adding new ones
     using klass as the constructor
     
-    col_new is a dict
-    col_orig is a list
-    klass is a type
+    :param src: is an object
+    :param dst: is a list of klass objects
+    :param klass: is a type
     """
-    working = col_new.copy()
     to_del = []
-    for obj in col_orig:
-        if getattr(obj,name_attr) in working:
+    props = get_properties(src)
+    for ig in ignore_props: props.remove(ig)
+    
+    for obj in dst:
+        prop_name = getattr(obj,name_attr)
+        if prop_name in props:
             # Update
-            setattr(obj, value_attr, working[obj.name])
-            del working[obj.name]
+            setattr(obj, value_attr, getattr(src, prop_name))
+            props.remove(prop_name)
         else:
             # Delete pending
             to_del.append(obj)
     # Delete
     for obj in to_del:
-        col_orig.remove(obj)
+        dst.remove(obj)
     # Add
-    for k in working:
+    for k in props:
         obj = klass()
         setattr(obj, name_attr, k)
-        setattr(obj, value_attr, working[k])
-        col_orig.append(obj)
+        setattr(obj, value_attr, getattr(src, k))
+        dst.append(obj)
         
 def merge_schema_lists(col_orig, col_new):
     """This method updates col_orig removing any that aren't in col_new, updating those that are, and adding new ones
@@ -284,13 +290,8 @@ def dao_to_domain(dao):
         copy_attrs(dao, domain, ["id", "name"])
         domain.region_points = [(p.latitude, p.longitude) for p in dao.region_points]
     elif type(dao) == Schema:
-        if dao.for_ == "data_entry":
-            domain = jcudc24ingesterapi.schemas.data_entry_schemas.DataEntrySchema()
-        elif dao.for_ == "dataset_metadata":
-            domain = jcudc24ingesterapi.schemas.metadata_schemas.DatasetMetadataSchema()
-        elif dao.for_ == "data_entry_metadata":
-            domain = jcudc24ingesterapi.schemas.metadata_schemas.DataEntryMetadataSchema()
-        else: raise PersistenceError("Invalid schema type: %s"%dao.for_)
+        domain = domain_marshaller.class_for(dao.for_ + "_schema")()
+        
         copy_attrs(dao, domain, ["id", "name"])
         domain.extends.extend(dao.extends)
         for attr in dao.attributes:
@@ -313,6 +314,9 @@ def dao_to_domain(dao):
         copy_attrs(dao, domain, ["id", "location", "schema", "enabled", "description", "redbox_uri", "repositoryId"])
         if dao.x != None:
             domain.location_offset = LocationOffset(dao.x, dao.y, dao.z)
+        if dao.data_source != None:
+            domain.data_source = domain_marshaller.class_for(dao.data_source.kind)()
+            
     else:
         raise PersistenceError("Could not convert DAO object to domain: %s"%(str(type(dao))))
     return domain
@@ -429,15 +433,14 @@ class IngesterServiceDB(IIngesterService):
                 raise ValueError("Location offset is invalid")
 
 #        # Clean up the sampling link
-#        if ds.data_source == None and data_source != None:
-#            ds.data_source = DataSource()
-#        elif ds.data_source != None and data_source == None:
-#            del ds.data_source
-#        # If the sampling object actually exists then populate it
-#        if ds.data_source != None:
-#            ds.data_source.kind = data_source["class"]
-#            del data_source["class"]
-#            merge_parameters(ds.data_source.parameters, data_source, DataSourceParameter)
+        if ds.data_source == None and dataset.data_source != None:
+            ds.data_source = DataSource()
+        elif ds.data_source != None and dataset.data_source == None:
+            del ds.data_source
+        # If the sampling object actually exists then populate it
+        if ds.data_source != None:
+            ds.data_source.kind = dataset.data_source.__xmlrpc_class__
+            merge_parameters(dataset.data_source, ds.data_source.parameters, DataSourceParameter, ignore_props=["sampling"])
 #        
 #        # Clean up the sampling link
 #        if ds.sampling == None and sampling != None:
@@ -448,7 +451,7 @@ class IngesterServiceDB(IIngesterService):
 #        if ds.sampling != None:
 #            ds.sampling.kind = sampling["class"]
 #            del sampling["class"]
-#            merge_parameters(ds.sampling.parameters, sampling, SamplingParameter)
+#            merge_parameters(sampling, ds.sampling.parameters, SamplingParameter)
                 
         # If the repo has a method to persist the dataset then call it and record the output
         fn = find_method(self.repo, "persist", "dataset")
