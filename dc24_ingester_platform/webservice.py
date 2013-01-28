@@ -9,9 +9,12 @@ Created on Oct 3, 2012
 from twisted.web import xmlrpc
 import logging
 import os
+import sys
 import shutil
 from dc24_ingester_platform.service import PersistenceError
 from twisted.web.resource import Resource
+from jcudc24ingesterapi.ingester_platform_api import Marshaller
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +33,13 @@ class ManagementService(xmlrpc.XMLRPC):
             raise ValueError("The provided staging directory doesn't exist")
         self.transactions = {}
         self.staging_dir = staging_dir
+        self._marshaller = Marshaller()
         
     def xmlrpc_insert(self, obj):
         """ Insert the passed object into the ingester platform
         """
         try:
-            return self.service.persist(obj)
+            return self._marshaller.obj_to_dict(self.service.persist(self._marshaller.dict_to_obj(obj)))
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         except PersistenceError, e:
@@ -45,7 +49,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Store the passed object.
         """
         try:
-            return self.service.persist(obj)
+            return self._marshaller.obj_to_dict(self.service.persist(self._marshaller.dict_to_obj(obj)))
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         except PersistenceError, e:
@@ -55,6 +59,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Creates a staging area for a unit of work and returns the transaction ID
         """
         try:
+            unit = self._marshaller.dict_to_obj(unit)
             # Fix me, this is a possible race condition in a multithreaded env
             transaction_id = self.transaction_counter
             cwd = os.path.join(self.staging_dir, str(transaction_id))
@@ -65,6 +70,8 @@ class ManagementService(xmlrpc.XMLRPC):
             self.transactions[transaction_id] = cwd, unit
             return transaction_id
         except ValueError, e:
+#            exc_type, exc_value, exc_traceback = sys.exc_info()
+#            traceback.print_tb(exc_traceback)
             raise xmlrpc.Fault(1, str(e))
         except PersistenceError, e:
             raise xmlrpc.Fault(1, str(e))
@@ -74,7 +81,8 @@ class ManagementService(xmlrpc.XMLRPC):
         """
         try:
             cwd, unit = self.transactions[int(transaction_id)]
-            return self.service.commit(unit, cwd)
+            ret = self._marshaller.obj_to_dict(self.service.commit(unit, cwd), special_attrs=["correlationid"])
+            return ret
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         except PersistenceError, e:
@@ -84,7 +92,7 @@ class ManagementService(xmlrpc.XMLRPC):
 
     def xmlrpc_search(self, object_type, criteria):
         try:
-            return self.service.search(object_type, criteria)
+            return self._marshaller.obj_to_dict(self.service.search(object_type, criteria))
         except Exception, e:
             raise xmlrpc.Fault(1, str(e))
 
@@ -92,7 +100,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Retrieve a location by id
         """
         try:
-            return self.service.getLocation(loc_id)
+            return self._marshaller.obj_to_dict(self.service.getLocation(loc_id))
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         except PersistenceError, e:
@@ -102,7 +110,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Retrieve a dataset by id
         """
         try:
-            return self.service.getDataset(ds_id)
+            return self._marshaller.obj_to_dict(self.service.getDataset(ds_id))
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         except PersistenceError, e:
@@ -132,7 +140,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Disable ingestion of a dataset.
         """
         try:
-            return self.service.findDatasets(**search_args)
+            return self._marshaller.obj_to_dict(self.service.findDatasets(**search_args))
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         except PersistenceError, e:
