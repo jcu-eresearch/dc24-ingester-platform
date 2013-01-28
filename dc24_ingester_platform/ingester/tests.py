@@ -153,3 +153,4 @@ def process(cwd, data_entry):
         
         # Check there are now no files
         self.assertEquals(0, len(os.listdir(staging)))
+        
