@@ -15,9 +15,20 @@ import decimal
 import logging
 from dc24_ingester_platform.utils import parse_timestamp
 
+import jcudc24ingesterapi.models.data_entry
+import jcudc24ingesterapi.models.locations
+import jcudc24ingesterapi.models.dataset
+import jcudc24ingesterapi.models.data_sources
+import jcudc24ingesterapi.schemas.data_entry_schemas
+import jcudc24ingesterapi.schemas.data_types
+from jcudc24ingesterapi.models.locations import LocationOffset
+from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
+
 logger = logging.getLogger(__name__)
 
 Base = declarative_base()
+
+domain_marshaller = Marshaller()
 
 def obj_to_dict(obj, klass=None):
     """Maps an object of base class BaseManagementObject to a dict.
@@ -49,10 +60,10 @@ def obj_to_dict(obj, klass=None):
         del ret["z"]
     return ret
 
-def dict_to_object(dic, obj):
-    for attr in dir(obj):
-        if attr.startswith("_"): continue
-        if dic.has_key(attr): setattr(obj, attr, dic[attr])
+#def dict_to_object(dic, obj):
+#    for attr in dir(obj):
+#        if attr.startswith("_"): continue
+#        if dic.has_key(attr): setattr(obj, attr, dic[attr])
 
 class Region(Base):
     __tablename__ = "REGION"
@@ -185,33 +196,36 @@ class DataSourceState(Base):
     value = Column(String)
     dataset_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))   
     
-def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="value"):
+def merge_parameters(src, dst, klass, name_attr="name", value_attr="value", ignore_props=[]):
     """This method updates col_orig removing any that aren't in col_new, updating those that are, and adding new ones
     using klass as the constructor
     
-    col_new is a dict
-    col_orig is a list
-    klass is a type
+    :param src: is an object
+    :param dst: is a list of klass objects
+    :param klass: is a type
     """
-    working = col_new.copy()
     to_del = []
-    for obj in col_orig:
-        if getattr(obj,name_attr) in working:
+    props = get_properties(src)
+    for ig in ignore_props: props.remove(ig)
+    
+    for obj in dst:
+        prop_name = getattr(obj,name_attr)
+        if prop_name in props:
             # Update
-            setattr(obj, value_attr, working[obj.name])
-            del working[obj.name]
+            setattr(obj, value_attr, getattr(src, prop_name))
+            props.remove(prop_name)
         else:
             # Delete pending
             to_del.append(obj)
     # Delete
     for obj in to_del:
-        col_orig.remove(obj)
+        dst.remove(obj)
     # Add
-    for k in working:
+    for k in props:
         obj = klass()
         setattr(obj, name_attr, k)
-        setattr(obj, value_attr, working[k])
-        col_orig.append(obj)
+        setattr(obj, value_attr, getattr(src, k))
+        dst.append(obj)
         
 def merge_schema_lists(col_orig, col_new):
     """This method updates col_orig removing any that aren't in col_new, updating those that are, and adding new ones
@@ -253,14 +267,59 @@ def ingest_order(x, y):
     x_i = len(order)
     y_i = len(order)
     for i in range(len(order)): 
-        if x["class"].endswith(order[i]): 
+        if x.__xmlrpc_class__.endswith(order[i]): 
             x_i = i
             break
     for i in range(len(order)): 
-        if y["class"].endswith(order[i]): 
+        if y.__xmlrpc_class__.endswith(order[i]): 
             y_i = i
             break
     return cmp(x_i, y_i)
+
+def copy_attrs(src, dst, attrs):
+    """Copy a list of attributes from one object to another"""
+    for attr in attrs:
+        if hasattr(src, attr):
+            setattr(dst, attr, getattr(src, attr))
+
+def dao_to_domain(dao):
+    """Copies a DAO object to a domain object"""
+    domain = None
+    if type(dao) == Region:
+        domain = jcudc24ingesterapi.models.locations.Region()
+        copy_attrs(dao, domain, ["id", "name"])
+        domain.region_points = [(p.latitude, p.longitude) for p in dao.region_points]
+    elif type(dao) == Schema:
+        domain = domain_marshaller.class_for(dao.for_ + "_schema")()
+        
+        copy_attrs(dao, domain, ["id", "name"])
+        domain.extends.extend(dao.extends)
+        for attr in dao.attributes:
+            attr_ = None
+            if attr.kind == "file": attr_ = jcudc24ingesterapi.schemas.data_types.FileDataType(attr.name)
+            elif attr.kind == "string": attr_ = jcudc24ingesterapi.schemas.data_types.String(attr.name)
+            elif attr.kind == "integer": attr_ = jcudc24ingesterapi.schemas.data_types.Integer(attr.name)
+            elif attr.kind == "double": attr_ = jcudc24ingesterapi.schemas.data_types.Double(attr.name)
+            elif attr.kind == "datetime": attr_ = jcudc24ingesterapi.schemas.data_types.DateTime(attr.name)
+            elif attr.kind == "boolean": attr_ = jcudc24ingesterapi.schemas.data_types.Boolean(attr.name)
+            else: raise PersistenceError("Invalid data type: %s"%attr.kind)
+            attr_.units = attr.units
+            attr_.description = attr.description
+            domain.addAttr(attr_)
+    elif type(dao) == Location:
+        domain = jcudc24ingesterapi.models.locations.Location()
+        copy_attrs(dao, domain, ["id", "name", "latitude", "longitude", "elevation"])
+    elif type(dao) == Dataset:
+        domain = jcudc24ingesterapi.models.dataset.Dataset()
+        copy_attrs(dao, domain, ["id", "location", "schema", "enabled", "description", "redbox_uri", "repositoryId"])
+        if dao.x != None:
+            domain.location_offset = LocationOffset(dao.x, dao.y, dao.z)
+        if dao.data_source != None:
+            domain.data_source = domain_marshaller.class_for(dao.data_source.kind)()
+            
+    else:
+        raise PersistenceError("Could not convert DAO object to domain: %s"%(str(type(dao))))
+    return domain
 
 class IngesterServiceDB(IIngesterService):
     """This service provides DAO operations for the ingester service.
@@ -274,6 +333,13 @@ class IngesterServiceDB(IIngesterService):
         self.samplers = {}
         self.data_source = {}
         self.repo = repo
+        self.obs_listeners = []
+
+    def register_observation_listener(self, listener):
+        self.obs_listeners.append(listener)
+        
+    def unregister_observation_listener(self, listener):
+        self.obs_listeners.remove(listener)
 
     def reset(self):
         Location.metadata.drop_all(self.engine)
@@ -281,45 +347,47 @@ class IngesterServiceDB(IIngesterService):
         self.repo.reset()
 
     def commit(self, unit, cwd):
-        """Commit a unit of work with file objects based in cwd"""
+        """Commit a unit of work with file objects based in cwd.
+        
+        This method will alter the unit and it's contents, and returns 
+        a list of the new persisted objects.
+        """
         s = orm.sessionmaker(bind=self.engine)()
         ret = []
         locs = {}
         schemas = {}
         datasets = {}
         try:
-            unit["insert"].sort(ingest_order)
-            unit["update"].sort(ingest_order)
+            unit._to_insert.sort(ingest_order)
+            unit._to_update.sort(ingest_order)
             # delete first
             # now sort to find objects by order of dependency (location then dataset)
-            for unit_type in ("insert", "update"):
-                for obj in unit[unit_type]:
-                    oid = obj["id"]
-                    cls = obj["class"]
-                    del obj["id"]
+            for unit_list in (unit._to_insert, unit._to_update):
+                for obj in unit_list:
+                    oid = obj.id
+                    if obj.id < 0: obj.id = None
+                    cls = obj.__xmlrpc_class__
                     if cls == "dataset":
-                        if obj["location"] < 0: obj["location"] = locs[obj["location"]]
-                        if obj["schema"] < 0: obj["schema"] = schemas[obj["schema"]]
+                        if obj.location < 0: obj.location = locs[obj.location]
+                        if obj.schema < 0: obj.schema = schemas[obj.schema]
+                        
                     elif cls.endswith("schema"):
-                        if "extends" in obj:
-                            obj["extends"] = [ schemas[p_id] if p_id<0 else p_id for p_id in obj["extends"]]
-                        else:
-                            obj["extends"] = []
+                        obj.extends = [ schemas[p_id] if p_id<0 else p_id for p_id in obj.extends]
                             
                     fn = find_method(self, "persist", cls)
                     if fn == None:
                         raise ValueError("Could not find method for", "persist", cls)
                     obj = fn(obj, s, cwd)
                     if cls == "location":
-                        locs[oid] = obj["id"]
+                        locs[oid] = obj.id
                     elif cls.endswith("schema"):
-                        schemas[oid] = obj["id"]
+                        schemas[oid] = obj.id
                             
-                    obj["correlationid"] = oid
+                    obj.correlationid = oid
                     ret.append(obj)
-            for obj_id in unit["enable"]:
+            for obj_id in unit._to_enable:
                 self.enableDataset(obj_id)
-            for obj_id in unit["disable"]:
+            for obj_id in unit._to_disable:
                 self.disableDataset(obj_id)
             s.commit()
             return ret
@@ -327,10 +395,7 @@ class IngesterServiceDB(IIngesterService):
             s.close()
 
     def persist(self, obj):
-        obj = obj.copy()
-        
-        cls = obj["class"]
-        del obj["class"]
+        cls = obj.__xmlrpc_class__
         fn = find_method(self, "persist", cls)
         if fn != None:
             s = orm.sessionmaker(bind=self.engine)()
@@ -346,58 +411,54 @@ class IngesterServiceDB(IIngesterService):
     def persistDataset(self, dataset, session, cwd):
         """Assumes that we have a copy of the object, so we can change it if required.
         """
-        if "location" not in dataset:
+        if dataset.location == None:
             raise ValueError("Location must be set")
         # Check schema is of the correct type
+
         try:
-            location = session.query(Location).filter(Location.id == dataset["location"]).one()
+            location = session.query(Location).filter(Location.id == dataset.location).one()
         except NoResultFound, e:
-            raise ValueError("Provided location not found")
+            raise ValueError("Provided location not found: %d"%dataset.location)
         try:
-            schema = session.query(Schema).filter(Schema.id == dataset["schema"]).one()
+            schema = session.query(Schema).filter(Schema.id == dataset.schema).one()
         except NoResultFound, e:
-            raise ValueError("Provided schema not found")
+            raise ValueError("Provided schema not found: %d"%dataset.schema)
         if schema.for_ != "data_entry":
             raise ValueError("The schema must be for a data_entry")
         
         ds = Dataset()
-        data_source = dataset["data_source"].copy() if dataset.has_key("data_source") and dataset["data_source"] != None else None
-        sampling = dataset["sampling"].copy() if dataset.has_key("sampling") and dataset["sampling"] != None else None
-        if dataset.has_key("data_source"): del dataset["data_source"]
-        if dataset.has_key("sampling"): del dataset["sampling"]
-        if dataset.has_key("id") and dataset["id"] != None:
-            ds = session.query(Dataset).filter(Dataset.id == dataset["id"]).one()
- 
-        dict_to_object(dataset, ds)
-        if "location_offset" in dataset and dataset["location_offset"] != None:
+        if dataset.id != None:
+            ds = session.query(Dataset).filter(Dataset.id == dataset.id).one()
+            
+        copy_attrs(dataset, ds, ["location", "schema", "enabled", "description", "redbox_uri"])
+        if dataset.location_offset != None:
             try:
-                ds.x = dataset["location_offset"]["x"]
-                ds.y = dataset["location_offset"]["y"]
-                ds.z = dataset["location_offset"]["z"]
+                ds.x = dataset.location_offset.x
+                ds.y = dataset.location_offset.y
+                ds.z = dataset.location_offset.z
             except:
                 raise ValueError("Location offset is invalid")
 
-        # Clean up the sampling link
-        if ds.data_source == None and data_source != None:
+#        # Clean up the sampling link
+        if ds.data_source == None and dataset.data_source != None:
             ds.data_source = DataSource()
-        elif ds.data_source != None and data_source == None:
+        elif ds.data_source != None and dataset.data_source == None:
             del ds.data_source
         # If the sampling object actually exists then populate it
         if ds.data_source != None:
-            ds.data_source.kind = data_source["class"]
-            del data_source["class"]
-            merge_parameters(ds.data_source.parameters, data_source, DataSourceParameter)
-        
-        # Clean up the sampling link
-        if ds.sampling == None and sampling != None:
-            ds.sampling = Sampling()
-        elif ds.sampling != None and sampling == None:
-            del ds.sampling
-        # If the sampling object actually exists then populate it
-        if ds.sampling != None:
-            ds.sampling.kind = sampling["class"]
-            del sampling["class"]
-            merge_parameters(ds.sampling.parameters, sampling, SamplingParameter)
+            ds.data_source.kind = dataset.data_source.__xmlrpc_class__
+            merge_parameters(dataset.data_source, ds.data_source.parameters, DataSourceParameter, ignore_props=["sampling"])
+#        
+#        # Clean up the sampling link
+#        if ds.sampling == None and sampling != None:
+#            ds.sampling = Sampling()
+#        elif ds.sampling != None and sampling == None:
+#            del ds.sampling
+#        # If the sampling object actually exists then populate it
+#        if ds.sampling != None:
+#            ds.sampling.kind = sampling["class"]
+#            del sampling["class"]
+#            merge_parameters(sampling, ds.sampling.parameters, SamplingParameter)
                 
         # If the repo has a method to persist the dataset then call it and record the output
         fn = find_method(self.repo, "persist", "dataset")
@@ -409,12 +470,12 @@ class IngesterServiceDB(IIngesterService):
 
     @method("persist", "region")    
     def persistRegion(self, region, session, cwd):
-        points = region["region_points"]
-        del region["region_points"]
+        points = list(region.region_points)
         reg = Region()
-        if region.has_key("id") and region["id"] != None:
-            reg = obj_to_dict(session.query(Region).filter(Region.id == region["id"]).one())
-        dict_to_object(region, reg)
+        if region.id != None:
+            reg = session.query(Region).filter(Region.id == region["id"]).one()
+        
+        reg.name = region.name
         
         while len(reg.region_points) > 0:
             reg.region_points.remove(0)
@@ -428,7 +489,7 @@ class IngesterServiceDB(IIngesterService):
     @method("persist", "location")    
     def persistLocation(self, location, s, cwd):
         loc = Location()
-        dict_to_object(location, loc)
+        copy_attrs(location, loc, ["id", "name", "latitude", "longitude", "elevation"])
         # If the repo has a method to persist the dataset then call it and record the output
         fn = find_method(self.repo, "persist", "location")
         if fn != None:
@@ -449,30 +510,23 @@ class IngesterServiceDB(IIngesterService):
         return self._persistSchema(schema, "schema", session)
         
     def _persistSchema(self, schema, for_, s):
-        if "id" in schema and schema["id"] != None:
+        if schema.id != None:
             raise PersistenceError("Updates are not supported for Schemas")
         
-        schema = schema.copy()
-
         attrs = []
-        for attr in schema["attributes"]:
+        for (key, attr) in schema.attrs.items():
             new_attr = SchemaAttribute()
-            new_attr.kind = attr["class"]
-            new_attr.name = attr["name"]
-            new_attr.description = attr["description"] if "description" in attr else None
-            new_attr.units = attr["units"] if "units" in attr else None
+            new_attr.kind = attr.__xmlrpc_class__
+            new_attr.name = attr.name
+            new_attr.description = attr.description
+            new_attr.units = attr.units
             attrs.append(new_attr)
-        del schema["attributes"]
-        
-        if "extends" in schema:
-            parents = schema["extends"]
-            del schema["extends"]
-        else:
-            parents = []
+
+        parents = list(schema.extends)
         
         schema_ = Schema()
-        dict_to_object(schema, schema_)
-        merge_schema_lists(schema_.attributes, attrs)
+        schema_.name = schema.name
+        schema_.attributes = attrs
         
         # Set foreign keys
         if len(parents) > 0:
@@ -511,7 +565,7 @@ class IngesterServiceDB(IIngesterService):
             else:
                 session.merge(obj)
             session.flush()
-            return obj_to_dict(obj)
+            return dao_to_domain(obj)
         except Exception, e:
             logger.error("Error saving: " + str(e))
             session.rollback()
@@ -533,22 +587,7 @@ class IngesterServiceDB(IIngesterService):
         """
         try:
             obj = session.query(Dataset).filter(Dataset.id == ds_id).one()
-            ret = obj_to_dict(obj)
-            # Retrieve data_source
-            if obj.data_source != None:
-                data_source = {}
-                data_source["class"] = str(obj.data_source.kind)
-                for entry in obj.data_source.parameters:
-                    data_source[str(entry.name)] = str(entry.value)
-                ret["data_source"] = data_source
-            # Retrieve sampling
-            if obj.sampling != None:
-                sampling = {}
-                sampling["class"] = str(obj.sampling.kind)
-                for entry in obj.sampling.parameters:
-                    sampling[str(entry.name)] = str(entry.value)
-                ret["sampling"] = sampling
-            return ret
+            return dao_to_domain(obj)
         except NoResultFound, e:
             return None
         
@@ -608,7 +647,7 @@ class IngesterServiceDB(IIngesterService):
         session = orm.sessionmaker(bind=self.engine)()
         try:
             obj = session.query(Schema).filter(Schema.id == s_id).one()
-            schema = obj_to_dict(obj)
+            schema = dao_to_domain(obj)
             return schema
         finally:
             session.close()
@@ -618,7 +657,7 @@ class IngesterServiceDB(IIngesterService):
         session = orm.sessionmaker(bind=self.engine)()
         try:
             obj = session.query(Location).filter(Location.id == loc_id).one()
-            return obj_to_dict(obj)
+            return dao_to_domain(obj)
         finally:
             session.close()
 
@@ -678,10 +717,10 @@ class IngesterServiceDB(IIngesterService):
 
     @method("persist", "data_entry")
     def persistDataEntry(self, data_entry, session, cwd):
-        dataset_id = data_entry["dataset"]
-        timestamp = parse_timestamp(data_entry["timestamp"])
+        dataset_id = data_entry.dataset
+        timestamp = data_entry.timestamp
         dataset = self.getDataset(dataset_id)
-        return self.persistObservation(dataset, timestamp, data_entry["data"], cwd)
+        return self.persistObservation(dataset, timestamp, data_entry.data, cwd)
 
     def persistObservation(self, dataset, timestamp, obs, cwd):
         """Persist the observation to the repository. This method is also responsible for 
@@ -691,9 +730,10 @@ class IngesterServiceDB(IIngesterService):
         :param obs: Dict of attributes to ingest
         :param cwd: Working directory for this ingest
         """
-        schema = self.getSchema(dataset["schema"])
+        schema = self.getSchema(dataset.schema)
         identifier = self.repo.persistObservation(dataset, schema, timestamp, obs, cwd)
-        self.ingester.notifyNewObservation(identifier, dataset, obs, cwd)
+        for listener in self.obs_listeners:
+            listener.notifyNewObservation(identifier, dataset, obs, cwd)
         return identifier
 
     def runIngester(self, d_id):
@@ -735,7 +775,7 @@ class IngesterServiceDB(IIngesterService):
             objs = s.query(obj_type).filter(*where).all()
             ret_list = []
             for obj in objs:
-                ret_list.append(obj_to_dict(obj))
+                ret_list.append(dao_to_domain(obj))
             return ret_list
         finally:
             s.close()

@@ -14,6 +14,8 @@ import decimal
 import logging
 import os
 import shutil
+from jcudc24ingesterapi.schemas.data_types import FileDataType
+from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
 
 logger = logging.getLogger(__name__)
 
@@ -128,14 +130,15 @@ class RepositoryDB(IRepositoryService):
         Observation.metadata.create_all(self.engine, checkfirst=True)
     
     def copy_files(self, attrs, schema, cwd, obj, obj_type):
-        """Copy file attributes into place"""
+        """Copy file attributes into place and update the File Objects
+        to point to the destination path."""
         obj_path = os.path.join(self.repo, obj_type)
         if not os.path.exists(obj_path): os.makedirs(obj_path)
         for k in attrs:
-            if schema[k]["class"] == "file":
+            if isinstance(schema[k], FileDataType):
                 dest_file_name = os.path.join(obj_path, "%d-%s"%(obj.id, k))
-                shutil.copyfile(os.path.join(cwd, attrs[k]["path"]), dest_file_name)
-                attrs[k] = dest_file_name
+                shutil.copyfile(os.path.join(cwd, attrs[k].path), dest_file_name)
+                attrs[k].f_path = dest_file_name
     
     def validate_schema(self, attrs, schema):
         """Validate the attributes against the schema"""
@@ -155,47 +158,54 @@ class RepositoryDB(IRepositoryService):
             s.close()
 
     def persistObservation(self, dataset, schema, timestamp, attrs, cwd):
-        schema = dict( [ (s["name"], s) for s in schema["attributes"] ] )
         # Check the attributes are actually in the schema
-        self.validate_schema(attrs, schema)
+        self.validate_schema(attrs, schema.attrs)
         
         s = orm.sessionmaker(bind=self.engine)()
         try:
             obs = Observation()
             obs.timestamp = timestamp
-            obs.dataset = dataset["id"]
+            obs.dataset = dataset.id
             
             s.add(obs)
             s.flush()
             
             # Copy all files into place
-            self.copy_files(attrs, schema, cwd, obs, "data_entry")
+            self.copy_files(attrs, schema.attrs, cwd, obs, "data_entry")
             
             merge_parameters(obs.attrs, attrs, ObservationAttr)
             s.merge(obs)
             s.flush()
             s.commit()
             
-            return {"class":"data_entry", "dataset":obs.dataset, "id":obs.id, "timestamp": format_timestamp(obs.timestamp)}
+            entry = DataEntry()
+            entry.dataset = obs.dataset
+            entry.id = obs.id
+            entry.timestamp = obs.timestamp
+            for attr in obs.attrs:
+                if isinstance(schema.attrs[attr.name], FileDataType):
+                    entry[attr.name] = FileObject(f_path=attr.value) 
+                else:
+                    entry[attr.name] = attr.value 
+            return entry
         finally:
             s.close()
             
     def persistDatasetMetadata(self, dataset, schema, attrs, cwd):
-        schema_attrs = dict( [ (s["name"], s) for s in schema["attributes"] ] )
         # Check the attributes are actually in the schema
-        self.validate_schema(attrs, schema_attrs)
+        self.validate_schema(attrs, schema.attrs)
         
         s = orm.sessionmaker(bind=self.engine)()
         try:
             obs = DatasetMetadata()
-            obs.dataset = dataset["id"]
-            obs.schema = schema["id"]
+            obs.dataset = dataset.id
+            obs.schema = schema.id
             
             s.add(obs)
             s.flush()
             
             # Copy all files into place
-            self.copy_files(attrs, schema_attrs, cwd, obs, "dataset_metadata")
+            self.copy_files(attrs, schema.attrs, cwd, obs, "dataset_metadata")
             
             merge_parameters(obs.attrs, attrs, DatasetMetadataAttr)
             s.merge(obs)
@@ -207,21 +217,20 @@ class RepositoryDB(IRepositoryService):
             s.close()
             
     def persistDataEntryMetadata(self, data_entry, schema, attrs, cwd):
-        schema_attrs = dict( [ (s["name"], s) for s in schema["attributes"] ] )
         # Check the attributes are actually in the schema
-        self.validate_schema(attrs, schema_attrs)
+        self.validate_schema(attrs, schema.attrs)
         
         s = orm.sessionmaker(bind=self.engine)()
         try:
             obs = DataEntryMetadata()
-            obs.data_entry = data_entry["id"]
-            obs.schema = schema["id"]
+            obs.data_entry = data_entry.id
+            obs.schema = schema.id
             
             s.add(obs)
             s.flush()
             
             # Copy all files into place
-            self.copy_files(attrs, schema_attrs, cwd, obs, "data_entry_metadata")
+            self.copy_files(attrs, schema.attrs, cwd, obs, "data_entry_metadata")
             
             merge_parameters(obs.attrs, attrs, DataEntryMetadataAttr)
             s.merge(obs)

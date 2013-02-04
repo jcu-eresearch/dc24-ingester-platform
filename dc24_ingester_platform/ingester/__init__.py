@@ -26,7 +26,7 @@ class IngesterEngine(object):
         """Create an ingester engine, and register itself with the service facade.
         """
         self.service = service
-        self.service.ingester = self
+        self.service.register_observation_listener(self)
         self.staging_dir = staging_dir
         if not os.path.exists(self.staging_dir): os.makedirs(self.staging_dir)
         self._queue = []
@@ -42,7 +42,7 @@ class IngesterEngine(object):
         logger.info("Got %s datasets at %s"%(len(datasets), str(now)))
         # Verify if the schedule has run
         for dataset in datasets:
-            if "sampling" not in dataset or dataset["sampling"] == None: continue 
+            if dataset.sampling == None: continue 
             self.processSampler(now, dataset)
 
         self.processQueue()
@@ -54,14 +54,14 @@ class IngesterEngine(object):
         3. If the sampler returns False, save the sampler state and exit
         4. If it returns True, queue the sample to run
         """
-        state = self.service.getSamplerState(dataset["id"])
+        state = self.service.getSamplerState(dataset.id)
         try:
-            sampler = create_sampler(dataset["sampling"], state)
-            self.service.persistSamplerState(dataset["id"], sampler.state)
+            sampler = create_sampler(dataset.sampling, state)
+            self.service.persistSamplerState(dataset.id, sampler.state)
             if sampler.sample(now, dataset):
                 self.queue(dataset)
         except Exception, e:
-            self.service.logIngesterEvent(dataset["id"], datetime.datetime.now(), "ERROR", str(e))
+            self.service.logIngesterEvent(dataset.id, datetime.datetime.now(), "ERROR", str(e))
   
     def processQueue(self):
         """Process the pending fetch and process queue"""
@@ -69,10 +69,10 @@ class IngesterEngine(object):
             dataset, parameters = self._queue[0]
             del self._queue[0]
             
-            state = self.service.getDataSourceState(dataset["id"])
+            state = self.service.getDataSourceState(dataset.id)
             try:
-                data_source = self._data_source_factory(dataset["data_source"], state, parameters)
-                self.service.logIngesterEvent(dataset["id"], datetime.datetime.now(), "INFO", "Processing ")
+                data_source = self._data_source_factory(dataset.data_source, state, parameters)
+                self.service.logIngesterEvent(dataset.id, datetime.datetime.now(), "INFO", "Processing ")
                 cwd = tempfile.mkdtemp(dir=self.staging_dir)
                 
                 data_entries = data_source.fetch(cwd)
@@ -88,18 +88,18 @@ class IngesterEngine(object):
                         logger.info("storing to default dataset")
                         self.queueIngest(dataset, entry, cwd)
                         
-                self.service.persistDataSourceState(dataset["id"], data_source.state)
+                self.service.persistDataSourceState(dataset.id, data_source.state)
             except Exception, e:
                 logger.error(str(e))
-                self.service.logIngesterEvent(dataset["id"], datetime.datetime.now(), "ERROR", str(e))
+                self.service.logIngesterEvent(dataset.id, datetime.datetime.now(), "ERROR", str(e))
   
     def processIngestQueue(self):
         """Process one entry in the ingest queue"""
         if len(self._ingest_queue) == 0: return
         dataset, obs, cwd = self._ingest_queue[0]
         del self._ingest_queue[0]
-        
-        timestamp = parse_timestamp(obs["time"])
+        # FIXME
+        timestamp = parse_timestamp(obs.time)
         del obs["time"]
         self.service.persistObservation(dataset, timestamp, obs, cwd)
   

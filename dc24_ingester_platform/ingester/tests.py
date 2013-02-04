@@ -14,6 +14,9 @@ from processor import *
 from dc24_ingester_platform.service import IIngesterService
 from dc24_ingester_platform.ingester import IngesterEngine, create_data_source
 from dc24_ingester_platform.ingester.data_sources import DataSource
+from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
+from jcudc24ingesterapi.models.dataset import Dataset
+from jcudc24ingesterapi.models.data_sources import _DataSource, PushDataSource
 
 logger = logging.getLogger("dc24_ingester_platform")
 
@@ -28,7 +31,8 @@ class TestScriptModels(unittest.TestCase):
         file1 = "1\n2\n"
         with open(os.path.join(self.cwd, "file1"), "w") as f:
             f.write(file1)
-        data_entry = {"timestamp":format_timestamp(datetime.datetime.now()), "file1":{"path":"file1"}}
+        data_entry = DataEntry(timestamp=datetime.datetime.now())
+        data_entry["file1"] = FileObject("file1")
 
         script = """def process(cwd, data_entry):
     return [data_entry, None, None]
@@ -64,16 +68,22 @@ class MockService(IIngesterService):
             self.logs[dataset_id] = []
         self.logs[dataset_id].append( (timestamp, level, message) )
 
+    def register_observation_listener(self, listener):
+        pass
+
 class MockSource(DataSource):
     pass
 
 class MockSourceCSV1(MockSource):
     """This simple data source will create a CSV file with 2 lines"""
     def fetch(self, cwd):
-        with open(os.path.join(cwd, "file"), "w") as f:
+        with open(os.path.join(cwd, "file1"), "w") as f:
             f.write("2,55\n3,2\n")
             
-        return [{"timestamp":format_timestamp(datetime.datetime.now()), "file":{"path":"file"}}]
+        data_entry = DataEntry(timestamp=datetime.datetime.now())
+        data_entry["file1"] = FileObject("file1")
+        
+        return [data_entry]
 
 class TestIngesterProcess(unittest.TestCase):
     def setUp(self):
@@ -91,16 +101,20 @@ class TestIngesterProcess(unittest.TestCase):
             shutil.rmtree(d_name)
 
     def data_source_factory(self, source, state, parameters):
-        if source["class"] == "csv1":
-            args = dict(source)
-            del args["class"]
-            return MockSourceCSV1(state, parameters, **args)
+        if source.__xmlrpc_class__ == "csv1":
+            return MockSourceCSV1(state, parameters, source)
         else:
             return create_data_source(source, state, parameters)
         
     def testBasicIngest(self):
         """This test performs a simple data ingest"""
-        dataset = {"id":1, "data_source":{"class":"csv1"}}
+        dataset = Dataset()
+        dataset.id = 1
+        datasource = _DataSource()
+        datasource.__xmlrpc_class__ = "csv1"
+        
+        dataset.data_source = datasource
+        
         self.ingester.queue(dataset)
         self.ingester.processQueue()
         
@@ -116,19 +130,23 @@ from dc24_ingester_platform.utils import *
 def process(cwd, data_entry):
     data_entry = data_entry[0]
     ret = [data_entry]
-    with open(os.path.join(cwd, data_entry["file"]["path"])) as f:
+    with open(os.path.join(cwd, data_entry["file1"].f_path)) as f:
         for l in f.readlines():
             l = l.strip().split(",")
             if len(l) != 2: continue
-            ret.append( (2,{"timestamp":format_timestamp(datetime.datetime.now()), "a":{"path":l[1].strip()}}) )
+            ret.append( {"timestamp":format_timestamp(datetime.datetime.now()), "a":{"path":l[1].strip()}} )
     return ret
 """            
-        dataset = {"id":1, "data_source":{"class":"csv1", "processing_script":script}}
-        dataset2 = {"id":2}
+        
+        dataset = Dataset(dataset_id=1)
+        dataset.data_source = _DataSource(processing_script = script)
+        dataset.data_source.__xmlrpc_class__ = "csv1"
+        
+        dataset2 = Dataset(dataset_id=2)
         self.service.datasets[1] = dataset
         self.service.datasets[2] = dataset2
         
-        self.ingester.queue(dataset)
+        self.ingester.queue( dataset )
         self.ingester.processQueue()
         self.assertEquals(3, len(self.ingester._ingest_queue))
         
@@ -145,7 +163,10 @@ def process(cwd, data_entry):
         # Check there is only 1 file here
         self.assertEquals(1, len(os.listdir(staging)))
         
-        dataset = {"id":1, "data_source":{"class":"push_data_source"}}
+        dataset = Dataset()
+        dataset.id = 1
+        dataset.data_source = PushDataSource()
+        
         self.ingester.queue(dataset, {"path":staging})
         self.ingester.processQueue()
         
@@ -153,3 +174,4 @@ def process(cwd, data_entry):
         
         # Check there are now no files
         self.assertEquals(0, len(os.listdir(staging)))
+        
