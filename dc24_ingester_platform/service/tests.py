@@ -77,7 +77,7 @@ class TestServiceModels(unittest.TestCase):
         
         # Test ingest
         data_entry_1 = DataEntry(dataset1b.id, datetime.datetime.now())
-        data_entry_1['x'] = 27.8                # Add the extended schema items
+        data_entry_1['x'] = 27.8              
         data_entry_1 = self.service.persist(data_entry_1)
         self.assertIsNotNone(data_entry_1.id)
         

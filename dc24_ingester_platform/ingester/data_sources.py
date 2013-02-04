@@ -13,6 +13,7 @@ import urllib2
 import urlparse
 from dc24_ingester_platform.utils import *
 from dc24_ingester_platform import IngesterError
+from jcudc24ingesterapi.ingester_platform_api import get_properties
 
 logger = logging.getLogger("dc24_ingester_platform.ingester.data_sources")
 
@@ -21,7 +22,7 @@ class DataSource(object):
     and uses this to determine whether a dataset is due for a new sample"""
     state = None # Holds the state of the Sampler. This is persisted by the ingester.
     
-    def __init__(self, state, parameters, **kwargs):
+    def __init__(self, state, parameters, config):
         """
         :param state: State information left over from the last run
         :param parameters: Parameters specific to this current run, ie, triggering event IDs
@@ -29,8 +30,8 @@ class DataSource(object):
         """
         self.state = state
         self.parameters = parameters
-        for k in kwargs:
-            setattr(self, k, kwargs[k])
+        for param in get_properties(config):
+            setattr(self, param, getattr(config, param))
             
     def fetch(self, cwd):
         """Downloads and curate data from data source.
@@ -139,18 +140,18 @@ class PushDataSource(DataSource):
         :param cwd: working directory to place binary data
         :returns: dict containing the data to be ingested
         """
-        if "path" not in self.parameters:
-            raise DataSourceError("Path not in the parameter list")
-        if not os.path.exists(self.parameters["path"]):
+        if not hasattr(self, "path"):
+            raise DataSourceError("Path not set")
+        if not os.path.exists(self.path):
             raise DataSourceError("Could not find the staging path")
         
         RE_FILENAME = re.compile("^([0-9]+)$")
         ret = []
-        for f_name in os.listdir(self.parameters["path"]):
+        for f_name in os.listdir(self.path):
             m = RE_FILENAME.match(f_name)
             if m == None: continue
             new_filename = "file-"+f_name
-            os.rename(os.path.join(self.parameters["path"], f_name), os.path.join(cwd, new_filename))
+            os.rename(os.path.join(self.path, f_name), os.path.join(cwd, new_filename))
             timestamp = format_timestamp(datetime.datetime.utcfromtimestamp(int(m.group(1))))
             ret.append({"timestamp":timestamp, self.field: {"path":new_filename, "mime_type":"" }})
         return ret
@@ -186,8 +187,6 @@ class DataSourceError(Exception):
 
 def create_data_source(data_source_config, state, parameters):
     """Create the correct configured sampler from the provided dict"""
-    if data_source_config["class"] not in data_sources:
-        raise NoSuchDataSource("Sampler '%s' not found"%(data_source_config["class"]))
-    args = dict(data_source_config)
-    del args["class"]
-    return data_sources[data_source_config["class"]](state, parameters, **args)
+    if data_source_config.__xmlrpc_class__ not in data_sources:
+        raise NoSuchDataSource("Sampler '%s' not found"%(data_source_config.__xmlrpc_class__))
+    return data_sources[data_source_config.__xmlrpc_class__](state, parameters, data_source_config)

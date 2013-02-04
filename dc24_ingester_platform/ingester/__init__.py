@@ -26,7 +26,7 @@ class IngesterEngine(object):
         """Create an ingester engine, and register itself with the service facade.
         """
         self.service = service
-        self.service.ingester = self
+        self.service.register_observation_listener(self)
         self.staging_dir = staging_dir
         if not os.path.exists(self.staging_dir): os.makedirs(self.staging_dir)
         self._queue = []
