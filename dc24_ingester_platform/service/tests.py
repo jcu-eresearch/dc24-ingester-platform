@@ -3,6 +3,7 @@
 import unittest
 import tempfile
 import shutil
+import datetime
 from dc24_ingester_platform.service import ingesterdb, repodb, PersistenceError
 from jcudc24ingesterapi.models.locations import Region, Location
 from jcudc24ingesterapi.models.dataset import Dataset
@@ -12,6 +13,7 @@ from jcudc24ingesterapi.schemas.data_types import FileDataType, String, Double
 from jcudc24ingesterapi.ingester_platform_api import UnitOfWork
 from jcudc24ingesterapi.models.data_sources import PullDataSource
 from jcudc24ingesterapi.models.sampling import PeriodicSampling
+from jcudc24ingesterapi.models.data_entry import DataEntry
 
 class TestServiceModels(unittest.TestCase):
     def setUp(self):
@@ -33,6 +35,7 @@ class TestServiceModels(unittest.TestCase):
 
         schema2 = DataEntrySchema("schema2")
         schema2.addAttr(FileDataType("file"))
+        schema2.addAttr(Double("x"))
         schema2a = self.service.persist(schema2)
         
         loc = Location(10.0, 11.0)
@@ -72,6 +75,12 @@ class TestServiceModels(unittest.TestCase):
         locs = self.service.search("location")
         self.assertEquals(1, len(locs))
         
+        # Test ingest
+        data_entry_1 = DataEntry(dataset1b.id, datetime.datetime.now())
+        data_entry_1['x'] = 27.8                # Add the extended schema items
+        data_entry_1 = self.service.persist(data_entry_1)
+        self.assertIsNotNone(data_entry_1.id)
+        
     def test_region(self):
         #{"class":"region", "name": "Region1", "region_points":[(1, 1), (1, 2)]}
         region1 = Region("Region 1")
@@ -105,6 +114,7 @@ class TestServiceModels(unittest.TestCase):
         schema2 = self.service.persist(schema2)
         self.assertGreater(schema2.id, 0, "ID does not appear valid")
         self.assertEquals(1, len(schema2.attrs))
+        self.assertEquals("file2", schema2.attrs["file2"].name)
         
     def test_schema_persistence_unit(self):
         """This test creates a simple schema hierarchy, and tests updates, etc"""

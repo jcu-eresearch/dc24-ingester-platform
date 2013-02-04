@@ -14,6 +14,9 @@ from processor import *
 from dc24_ingester_platform.service import IIngesterService
 from dc24_ingester_platform.ingester import IngesterEngine, create_data_source
 from dc24_ingester_platform.ingester.data_sources import DataSource
+from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
+from jcudc24ingesterapi.models.dataset import Dataset
+from jcudc24ingesterapi.models.data_sources import _DataSource
 
 logger = logging.getLogger("dc24_ingester_platform")
 
@@ -28,7 +31,8 @@ class TestScriptModels(unittest.TestCase):
         file1 = "1\n2\n"
         with open(os.path.join(self.cwd, "file1"), "w") as f:
             f.write(file1)
-        data_entry = {"timestamp":format_timestamp(datetime.datetime.now()), "file1":{"path":"file1"}}
+        data_entry = DataEntry(timestamp=datetime.datetime.now())
+        data_entry["file1"] = FileObject("file1")
 
         script = """def process(cwd, data_entry):
     return [data_entry, None, None]
@@ -73,7 +77,10 @@ class MockSourceCSV1(MockSource):
         with open(os.path.join(cwd, "file"), "w") as f:
             f.write("2,55\n3,2\n")
             
-        return [{"timestamp":format_timestamp(datetime.datetime.now()), "file":{"path":"file"}}]
+        data_entry = DataEntry(timestamp=datetime.datetime.now())
+        data_entry["file1"] = FileObject("file1")
+        
+        return [data_entry]
 
 class TestIngesterProcess(unittest.TestCase):
     def setUp(self):
@@ -91,16 +98,21 @@ class TestIngesterProcess(unittest.TestCase):
             shutil.rmtree(d_name)
 
     def data_source_factory(self, source, state, parameters):
-        if source["class"] == "csv1":
-            args = dict(source)
-            del args["class"]
+        if source.__xmlrpc_class__ == "csv1":
+            args = source.__dict__
             return MockSourceCSV1(state, parameters, **args)
         else:
             return create_data_source(source, state, parameters)
         
     def testBasicIngest(self):
         """This test performs a simple data ingest"""
-        dataset = {"id":1, "data_source":{"class":"csv1"}}
+        dataset = Dataset()
+        dataset.id = 1
+        datasource = _DataSource()
+        datasource.__xmlrpc_class__ = "csv1"
+        
+        dataset.data_source = datasource
+        
         self.ingester.queue(dataset)
         self.ingester.processQueue()
         

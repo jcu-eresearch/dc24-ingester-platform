@@ -69,7 +69,7 @@ class IngesterEngine(object):
             dataset, parameters = self._queue[0]
             del self._queue[0]
             
-            state = self.service.getDataSourceState(dataseti.id)
+            state = self.service.getDataSourceState(dataset.id)
             try:
                 data_source = self._data_source_factory(dataset.data_source, state, parameters)
                 self.service.logIngesterEvent(dataset.id, datetime.datetime.now(), "INFO", "Processing ")
