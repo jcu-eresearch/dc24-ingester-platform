@@ -142,7 +142,18 @@ class RepositoryDB(IRepositoryService):
         for k in attrs:
             if k not in schema:
                 raise ValueError("%s is not in the schema"%(k))
-    
+
+    def findObservations(dataset_id):
+        """Find all observations within this dataset"""
+        s = orm.sessionmaker(bind=self.engine)()
+        ret = []
+        try:
+            objs = s.query(IngesterLog).filter(Observation.dataset == dataset_id).all()
+            for obj in objs:
+                pass
+        finally:
+            s.close()
+
     def persistObservation(self, dataset, schema, timestamp, attrs, cwd):
         schema = dict( [ (s["name"], s) for s in schema["attributes"] ] )
         # Check the attributes are actually in the schema
