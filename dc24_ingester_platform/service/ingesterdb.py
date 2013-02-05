@@ -286,6 +286,13 @@ def copy_attrs(src, dst, attrs):
                 setattr(dst, attr, dao_to_domain(v))
             else:
                 setattr(dst, attr, v)
+def copy_parameters(src, dst, attrs, name_attr="name", value_attr="value"):
+    """Copy from a property list to an object"""
+    for attr in src:
+        k = getattr(attr, name_attr)
+        v = getattr(attr, value_attr)
+        if k in attrs:
+            setattr(dst, k, v)
 
 def dao_to_domain(dao):
     """Copies a DAO object to a domain object"""
@@ -322,9 +329,11 @@ def dao_to_domain(dao):
         if dao.data_source != None:
             domain.data_source = domain_marshaller.class_for(dao.data_source.kind)()
             copy_attrs(dao.data_source, domain.data_source, get_properties(domain.data_source))
+            copy_parameters(dao.data_source.parameters, domain.data_source, get_properties(domain.data_source))
     elif type(dao) == Sampling:
         domain = domain_marshaller.class_for(dao.kind)()
         copy_attrs(dao, domain, get_properties(domain))
+        copy_parameters(dao.parameters, domain, get_properties(domain))
     else:
         raise PersistenceError("Could not convert DAO object to domain: %s"%(str(type(dao))))
     return domain
@@ -640,6 +649,8 @@ class IngesterServiceDB(IIngesterService):
             objs = s.query(Dataset).filter(Dataset.enabled == True).all()
             ret_list = []
             for obj in objs:
+                for attr in get_properties(obj):
+                    logger.info("%s=%s"%(attr, getattr(obj, attr)))
                 ret = dao_to_domain(obj)
                 ret_list.append(ret)
             return ret_list

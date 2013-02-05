@@ -37,6 +37,7 @@ class DataSource(object):
         self.state = state
         self.parameters = parameters
         for param in get_properties(config):
+            logger.info("Setting %s to %s"%(param, getattr(config, param)))
             setattr(self, param, getattr(config, param))
             
     def fetch(self, cwd):

@@ -43,7 +43,7 @@ class IngesterEngine(object):
         logger.info("Got %s datasets at %s"%(len(datasets), str(now)))
         # Verify if the schedule has run
         for dataset in datasets:
-            if not hasattr(dataset.data_source, "sampling") or dataset.data_source.sampling == None: continue 
+            if not hasattr(dataset.data_source, "sampling") or dataset.data_source.sampling == None: continue
             self.processSampler(now, dataset)
 
         self.processQueue()
