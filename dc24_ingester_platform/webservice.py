@@ -230,10 +230,10 @@ class DataController(Resource):
         
         # Update the path
         done = False
-        for sets in ["update", "insert"]:
-            for item in unit[sets]:
-                if class_ == item["class"] and int(oid) == item["id"]:
-                    item["data"][attr]["path"] = attr_rel_path
+        for sets in ["to_update", "to_insert"]:
+            for item in getattr(unit,sets):
+                if class_ == item.__xmlrpc_class__ and int(oid) == item.id:
+                    item[attr].f_path = attr_rel_path
                     done = True
                     break
             if done: break

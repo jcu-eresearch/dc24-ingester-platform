@@ -95,7 +95,7 @@ def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="val
     for obj in col_orig:
         if getattr(obj,name_attr) in working:
             # Update
-            setattr(obj, value_attr, working[obj.name])
+            setattr(obj, value_attr, working[obj.name].f_path if isinstance(working[obj.name], FileObject) else working[obj.name])
             del working[obj.name]
         else:
             # Delete pending
@@ -107,7 +107,7 @@ def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="val
     for k in working:
         obj = klass()
         setattr(obj, name_attr, k)
-        setattr(obj, value_attr, working[k])
+        setattr(obj, value_attr, working[obj.name].f_path if isinstance(working[obj.name], FileObject) else working[obj.name])
         col_orig.append(obj)
         
 
@@ -137,7 +137,7 @@ class RepositoryDB(IRepositoryService):
         for k in attrs:
             if isinstance(schema[k], FileDataType):
                 dest_file_name = os.path.join(obj_path, "%d-%s"%(obj.id, k))
-                shutil.copyfile(os.path.join(cwd, attrs[k].path), dest_file_name)
+                shutil.copyfile(os.path.join(cwd, attrs[k].f_path), dest_file_name)
                 attrs[k].f_path = dest_file_name
     
     def validate_schema(self, attrs, schema):

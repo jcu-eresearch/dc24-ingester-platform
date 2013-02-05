@@ -316,6 +316,7 @@ def dao_to_domain(dao):
             domain.location_offset = LocationOffset(dao.x, dao.y, dao.z)
         if dao.data_source != None:
             domain.data_source = domain_marshaller.class_for(dao.data_source.kind)()
+            copy_attrs(dao.data_source, domain.data_source, get_properties(domain.data_source))
             
     else:
         raise PersistenceError("Could not convert DAO object to domain: %s"%(str(type(dao))))

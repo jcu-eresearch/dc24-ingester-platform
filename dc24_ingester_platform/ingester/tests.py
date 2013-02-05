@@ -165,9 +165,9 @@ def process(cwd, data_entry):
         
         dataset = Dataset()
         dataset.id = 1
-        dataset.data_source = PushDataSource()
+        dataset.data_source = PushDataSource(path=staging)
         
-        self.ingester.queue(dataset, {"path":staging})
+        self.ingester.queue(dataset)
         self.ingester.processQueue()
         
         self.assertEquals(1, len(self.ingester._ingest_queue))
