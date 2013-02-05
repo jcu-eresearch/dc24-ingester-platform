@@ -18,6 +18,7 @@ from dc24_ingester_platform.utils import *
 from twisted.internet.task import LoopingCall
 from dc24_ingester_platform.ingester.sampling import create_sampler
 from dc24_ingester_platform.ingester.data_sources import create_data_source
+import traceback
 
 logger = logging.getLogger("dc24_ingester_platform")
 
@@ -42,7 +43,7 @@ class IngesterEngine(object):
         logger.info("Got %s datasets at %s"%(len(datasets), str(now)))
         # Verify if the schedule has run
         for dataset in datasets:
-            if dataset.sampling == None: continue 
+            if not hasattr(dataset.data_source, "sampling") or dataset.data_source.sampling == None: continue 
             self.processSampler(now, dataset)
 
         self.processQueue()
@@ -56,11 +57,14 @@ class IngesterEngine(object):
         """
         state = self.service.getSamplerState(dataset.id)
         try:
-            sampler = create_sampler(dataset.sampling, state)
+            sampler = create_sampler(dataset.data_source.sampling, state)
             self.service.persistSamplerState(dataset.id, sampler.state)
             if sampler.sample(now, dataset):
                 self.queue(dataset)
         except Exception, e:
+            logger.error("DATASET.id=%d: %s"%(dataset.id,str(e)))
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback.print_tb(exc_traceback)
             self.service.logIngesterEvent(dataset.id, datetime.datetime.now(), "ERROR", str(e))
   
     def processQueue(self):
@@ -90,7 +94,9 @@ class IngesterEngine(object):
                         
                 self.service.persistDataSourceState(dataset.id, data_source.state)
             except Exception, e:
-                logger.error(str(e))
+                logger.error("DATASET.id=%d: %s"%(dataset.id,str(e)))
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                traceback.print_tb(exc_traceback)
                 self.service.logIngesterEvent(dataset.id, datetime.datetime.now(), "ERROR", str(e))
   
     def processIngestQueue(self):

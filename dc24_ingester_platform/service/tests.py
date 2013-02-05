@@ -57,10 +57,17 @@ class TestServiceModels(unittest.TestCase):
         
         # Update and add a data source
         dataset1b.data_source = PullDataSource("http://www.abc.net.au", None, recursive=False, field="file", processing_script="TEST", sampling=PeriodicSampling(10000))
+        dataset1b.enabled = True
         dataset1c = self.service.persist(dataset1b)
         self.assertNotEqual(None, dataset1c.data_source)
         self.assertEqual("TEST", dataset1c.data_source.processing_script)
         self.assertNotEqual(None, dataset1c.data_source.sampling)
+        
+        datasets = self.service.getActiveDatasets()
+        
+        self.assertNotEqual(None, datasets[0].data_source)
+        self.assertEqual("TEST", datasets[0].data_source.processing_script)
+        self.assertNotEqual(None, datasets[0].data_source.sampling)
         
         schema1b = self.service.getSchema(schema1a.id)
         self.assertEquals(schema1a.id, schema1b.id)
