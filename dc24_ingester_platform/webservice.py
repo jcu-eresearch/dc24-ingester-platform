@@ -43,7 +43,12 @@ class ManagementService(xmlrpc.XMLRPC):
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         except PersistenceError, e:
-            raise xmlrpc.Fault(1, str(e)) 
+            raise xmlrpc.Fault(1, str(e))
+        except:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback.print_tb(exc_traceback)
+            raise xmlrpc.Fault(1, str(e))
+ 
         
     def xmlrpc_update(self, obj):
         """Store the passed object.
@@ -70,8 +75,6 @@ class ManagementService(xmlrpc.XMLRPC):
             self.transactions[transaction_id] = cwd, unit
             return transaction_id
         except ValueError, e:
-#            exc_type, exc_value, exc_traceback = sys.exc_info()
-#            traceback.print_tb(exc_traceback)
             raise xmlrpc.Fault(1, str(e))
         except PersistenceError, e:
             raise xmlrpc.Fault(1, str(e))

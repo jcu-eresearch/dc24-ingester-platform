@@ -206,7 +206,8 @@ def merge_parameters(src, dst, klass, name_attr="name", value_attr="value", igno
     """
     to_del = []
     props = get_properties(src)
-    for ig in ignore_props: props.remove(ig)
+    for ig in ignore_props: 
+        if ig in props: props.remove(ig)
     
     for obj in dst:
         prop_name = getattr(obj,name_attr)
@@ -621,21 +622,7 @@ class IngesterServiceDB(IIngesterService):
             objs = s.query(Dataset).filter(Dataset.enabled == True).all()
             ret_list = []
             for obj in objs:
-                ret = obj_to_dict(obj)
-                # Retrieve data_source
-                if obj.data_source != None:
-                    data_source = {}
-                    data_source["class"] = str(obj.data_source.kind)
-                    for entry in obj.data_source.parameters:
-                        data_source[str(entry.name)] = str(entry.value)
-                    ret["data_source"] = data_source
-                # Retrieve sampling
-                if obj.sampling != None:
-                    sampling = {}
-                    sampling["class"] = str(obj.sampling.kind)
-                    for entry in obj.sampling.parameters:
-                        sampling[str(entry.name)] = str(entry.value)
-                    ret["sampling"] = sampling
+                ret = dao_to_domain(obj)
                 ret_list.append(ret)
             return ret_list
         except NoResultFound, e:
