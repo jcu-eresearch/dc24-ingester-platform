@@ -9,7 +9,8 @@ setup(name='DC24_Ingester_Platform',
       packages=['dc24_ingester_platform'],
       zip_safe=False,
       entry_points={
-          "console_scripts": ["mgmt_client = dc24_ingester_platform.client:main"]
+          "console_scripts": ["mgmt_client = dc24_ingester_platform.client:main",
+          "run_ingester = dc24_ingester_platform.ingester.data_sources:main"]
       },
       install_requires = ["pysandbox", "jcudc24ingesterapi"]
 )

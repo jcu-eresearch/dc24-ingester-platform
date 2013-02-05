@@ -11,10 +11,15 @@ import shutil
 import logging
 import urllib2
 import urlparse
+import sys
+import json
+import pprint
+
 from dc24_ingester_platform.utils import *
 from dc24_ingester_platform import IngesterError
-from jcudc24ingesterapi.ingester_platform_api import get_properties
+from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
 from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
+from jcudc24ingesterapi.models.data_sources import _DataSource
 
 logger = logging.getLogger("dc24_ingester_platform.ingester.data_sources")
 
@@ -27,7 +32,7 @@ class DataSource(object):
         """
         :param state: State information left over from the last run
         :param parameters: Parameters specific to this current run, ie, triggering event IDs
-        :param **kwargs: All the data source configuration information
+        :param _DataSource: All the data source configuration information
         """
         self.state = state
         self.parameters = parameters
@@ -192,9 +197,55 @@ class DataSourceError(Exception):
     def __init__(self, *args, **kwargs):
         Exception.__init__(self, *args, **kwargs)
 
-
 def create_data_source(data_source_config, state, parameters):
     """Create the correct configured sampler from the provided dict"""
     if data_source_config.__xmlrpc_class__ not in data_sources:
         raise NoSuchDataSource("Sampler '%s' not found"%(data_source_config.__xmlrpc_class__))
     return data_sources[data_source_config.__xmlrpc_class__](state, parameters, data_source_config)
+
+def main():
+    args = sys.argv
+    if len(args) != 3:
+        print "Usage: %s <config file> <working directory>"%(args[0])
+        print """Where config file contains:
+        {
+        "class":"INGESTER_CLASS",
+        "state":{...},
+        "parameters":{...},
+        "config":{...}
+        }"""
+        return(1)
+    
+    cfg_file = args[1]
+    cwd = args[2]
+    
+    # Validate parameters
+    if not os.path.exists(cfg_file):
+        print "Config file not found: %s"%(cfg_file)
+        return(1) 
+    if not os.path.exists(cwd) and os.path.isdir(cwd):
+        print "Working directory does not exist"
+        return(1)
+    with open(sys.argv[1], "r") as f:
+        cfg = json.load(f)
+    if "class" not in cfg or "state" not in cfg or "parameters" not in cfg or "config" not in cfg:
+        print "Config file not valid"
+        return(1)
+    
+    # Create config object
+    m = Marshaller()
+
+    data_source_do = m.class_for(cfg["class"])()
+    for k in cfg["config"]:
+        setattr(data_source_do, k, cfg["config"][k])
+
+    data_source = create_data_source(data_source_do, cfg["state"], cfg["parameters"])
+    
+    results = data_source.fetch(cwd)
+    
+    for result in results:
+        print str(result)
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())
