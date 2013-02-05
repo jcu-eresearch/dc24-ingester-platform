@@ -14,6 +14,7 @@ import urlparse
 from dc24_ingester_platform.utils import *
 from dc24_ingester_platform import IngesterError
 from jcudc24ingesterapi.ingester_platform_api import get_properties
+from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
 
 logger = logging.getLogger("dc24_ingester_platform.ingester.data_sources")
 
@@ -91,15 +92,16 @@ class PullDataSource(DataSource):
                 try:
                     f_in = urllib2.urlopen(req)
                     f_out_name = os.path.join(cwd, "outputfile%d"%found)
-                    timestamp = format_timestamp(f_in.headers["Last-Modified"])
+                    timestamp = parse_timestamp_rfc_2822(f_in.headers["Last-Modified"])
                     with file(f_out_name, "wb") as f_out:
                         shutil.copyfileobj(f_in, f_out)
-                    ret.append({"timestamp":timestamp, self.field: {"path":"outputfile%d"%found, "mime_type":"" }})
+                    new_data_entry = DataEntry(timestamp=timestamp)
+                    new_data_entry[self.field] = FileObject(f_path="outputfile%d"%found, mime_type="" )
+                    ret.append(new_data_entry)
                     found += 1
                     
-                    timestamp_ = parse_timestamp(timestamp)
-                    if new_since == None or timestamp_ > new_since:
-                        new_since = timestamp_
+                    if new_since == None or timestamp > new_since:
+                        new_since = timestamp
                     
                 except urllib2.HTTPError, e:
                     if e.code == 304: 
@@ -117,15 +119,18 @@ class PullDataSource(DataSource):
         f_in = None
         try:
             f_in = urllib2.urlopen(req)
-            timestamp = format_timestamp(f_in.headers["Last-Modified"]) if "Last-Modified" in f_in.headers \
-                else format_timestamp(datetime.datetime.now())
+            timestamp = parse_timestamp_rfc_2822(f_in.headers["Last-Modified"]) if "Last-Modified" in f_in.headers \
+                else datetime.datetime.now()
             with file(f_out_name, "wb") as f_out:
                 shutil.copyfileobj(f_in, f_out)
                 
-            self.state["lasttime"] = timestamp
+            self.state["lasttime"] = format_timestamp(timestamp)
         finally:
             if f_in != None: f_in.close()
-        return [{"timestamp":timestamp, self.field: {"path":"outputfile", "mime_type":"" }}]
+        new_data_entry = DataEntry(timestamp=timestamp)
+        new_data_entry[self.field] = FileObject(f_path="outputfile", mime_type="" )
+            
+        return [new_data_entry]
 
 class PushDataSource(DataSource):
     """Scan an incoming directory for new data. The filename encodes
@@ -152,8 +157,11 @@ class PushDataSource(DataSource):
             if m == None: continue
             new_filename = "file-"+f_name
             os.rename(os.path.join(self.path, f_name), os.path.join(cwd, new_filename))
-            timestamp = format_timestamp(datetime.datetime.utcfromtimestamp(int(m.group(1))))
-            ret.append({"timestamp":timestamp, self.field: {"path":new_filename, "mime_type":"" }})
+            timestamp = datetime.datetime.utcfromtimestamp(int(m.group(1)))
+            new_data_entry = DataEntry(timestamp=timestamp)
+            new_data_entry[self.field] = FileObject(f_path=new_filename, mime_type="" )
+            ret.append(new_data_entry)
+            
         return ret
 
 class DatasetDataSource(DataSource):

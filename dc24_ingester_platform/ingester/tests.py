@@ -125,16 +125,19 @@ class TestIngesterProcess(unittest.TestCase):
         the extracted data goes into dataset 2"""
         script = """import os
 import datetime
-from dc24_ingester_platform.utils import *
+
+from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
 
 def process(cwd, data_entry):
     data_entry = data_entry[0]
-    ret = [data_entry]
+    ret = []
     with open(os.path.join(cwd, data_entry["file1"].f_path)) as f:
         for l in f.readlines():
             l = l.strip().split(",")
             if len(l) != 2: continue
-            ret.append( {"timestamp":format_timestamp(datetime.datetime.now()), "a":{"path":l[1].strip()}} )
+            new_data_entry = DataEntry(timestamp=datetime.datetime.now())
+            new_data_entry["a"] = FileObject(f_path=l[1].strip())
+            ret.append( new_data_entry )
     return ret
 """            
         
@@ -148,7 +151,7 @@ def process(cwd, data_entry):
         
         self.ingester.queue( dataset )
         self.ingester.processQueue()
-        self.assertEquals(3, len(self.ingester._ingest_queue))
+        self.assertEquals(2, len(self.ingester._ingest_queue))
         
     def testPush(self):
         """This tests the push ingest by creating a test dir, populating it, then forcing the ingester to run
