@@ -103,7 +103,6 @@ class Dataset(Base):
     id = Column(Integer, primary_key=True)
     location = Column(Integer, ForeignKey('LOCATIONS.id'))
     data_source = orm.relationship("DataSource", uselist=False)
-    sampling = orm.relationship("Sampling", uselist=False)
     schema = Column(Integer, ForeignKey('SCHEMA.id'))
     enabled = Column(Boolean, default=True)
     description = Column(String)
@@ -120,7 +119,7 @@ class Sampling(Base):
     __xmlrpc_class__ = "sampling"
     id = Column(Integer, primary_key=True)
     kind = Column(String)
-    dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
+    data_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))
     parameters = orm.relationship("SamplingParameter")
 
 class SamplingParameter(Base):
@@ -136,6 +135,7 @@ class DataSource(Base):
     __xmlrpc_class__ = "data_source"
     id = Column(Integer, primary_key=True)
     kind = Column(String)
+    sampling = orm.relationship("Sampling", uselist=False)
     dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
     parameters = orm.relationship("DataSourceParameter")
     processing_script = Column(String(32000))
@@ -281,7 +281,11 @@ def copy_attrs(src, dst, attrs):
     """Copy a list of attributes from one object to another"""
     for attr in attrs:
         if hasattr(src, attr):
-            setattr(dst, attr, getattr(src, attr))
+            v = getattr(src, attr)
+            if isinstance(v, Base):
+                setattr(dst, attr, dao_to_domain(v))
+            else:
+                setattr(dst, attr, v)
 
 def dao_to_domain(dao):
     """Copies a DAO object to a domain object"""
@@ -318,7 +322,9 @@ def dao_to_domain(dao):
         if dao.data_source != None:
             domain.data_source = domain_marshaller.class_for(dao.data_source.kind)()
             copy_attrs(dao.data_source, domain.data_source, get_properties(domain.data_source))
-            
+    elif type(dao) == Sampling:
+        domain = domain_marshaller.class_for(dao.kind)()
+        copy_attrs(dao, domain, get_properties(domain))
     else:
         raise PersistenceError("Could not convert DAO object to domain: %s"%(str(type(dao))))
     return domain
@@ -432,7 +438,7 @@ class IngesterServiceDB(IIngesterService):
         if dataset.id != None:
             ds = session.query(Dataset).filter(Dataset.id == dataset.id).one()
             
-        copy_attrs(dataset, ds, ["location", "schema", "enabled", "description", "redbox_uri"])
+        copy_attrs(dataset, ds, ["location", "schema", "enabled", "description", "redbox_uri", "sampling_script"])
         if dataset.location_offset != None:
             try:
                 ds.x = dataset.location_offset.x
@@ -450,7 +456,18 @@ class IngesterServiceDB(IIngesterService):
         if ds.data_source != None:
             ds.data_source.kind = dataset.data_source.__xmlrpc_class__
             merge_parameters(dataset.data_source, ds.data_source.parameters, DataSourceParameter, ignore_props=["sampling"])
-#        
+            ds.data_source.processing_script = dataset.data_source.processing_script
+
+        if ds.data_source != None: 
+            if ds.data_source.sampling == None and dataset.data_source.sampling != None:
+                ds.data_source.sampling = Sampling()
+            elif ds.data_source.sampling != None and dataset.data_source.sampling == None:
+                del ds.data_source.sampling
+            # If the sampling object actually exists then populate it
+            if ds.data_source.sampling != None:
+                ds.data_source.sampling.kind = dataset.data_source.sampling.__xmlrpc_class__
+                merge_parameters(dataset.data_source.sampling, ds.data_source.sampling.parameters, SamplingParameter)
+                    
 #        # Clean up the sampling link
 #        if ds.sampling == None and sampling != None:
 #            ds.sampling = Sampling()

@@ -56,9 +56,11 @@ class TestServiceModels(unittest.TestCase):
         self.assertDictEqual(dataset1a.__dict__, dataset1b.__dict__)
         
         # Update and add a data source
-        dataset1b.data_source = PullDataSource("http://www.abc.net.au", None, recursive=False, field="file", sampling=PeriodicSampling(10000))
+        dataset1b.data_source = PullDataSource("http://www.abc.net.au", None, recursive=False, field="file", processing_script="TEST", sampling=PeriodicSampling(10000))
         dataset1c = self.service.persist(dataset1b)
         self.assertNotEqual(None, dataset1c.data_source)
+        self.assertEqual("TEST", dataset1c.data_source.processing_script)
+        self.assertNotEqual(None, dataset1c.data_source.sampling)
         
         schema1b = self.service.getSchema(schema1a.id)
         self.assertEquals(schema1a.id, schema1b.id)

@@ -99,6 +99,12 @@ class ManagementService(xmlrpc.XMLRPC):
         except Exception, e:
             raise xmlrpc.Fault(1, str(e))
 
+    def xmlrpc_getIngesterEvents(self, dataset_id):
+        try:
+            return self.service.getIngesterEvents(dataset_id)
+        except Exception, e:
+            raise xmlrpc.Fault(1, str(e))
+
     def xmlrpc_getLocation(self, loc_id):
         """Retrieve a location by id
         """
