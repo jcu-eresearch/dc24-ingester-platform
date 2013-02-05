@@ -447,18 +447,19 @@ class IngesterServiceDB(IIngesterService):
             except:
                 raise ValueError("Location offset is invalid")
 
-#        # Clean up the sampling link
+#        # Clean up the data source link
         if ds.data_source == None and dataset.data_source != None:
             ds.data_source = DataSource()
         elif ds.data_source != None and dataset.data_source == None:
             del ds.data_source
-        # If the sampling object actually exists then populate it
+        # If the data source object actually exists then populate it
         if ds.data_source != None:
             ds.data_source.kind = dataset.data_source.__xmlrpc_class__
             merge_parameters(dataset.data_source, ds.data_source.parameters, DataSourceParameter, ignore_props=["sampling"])
             ds.data_source.processing_script = dataset.data_source.processing_script
-
-        if ds.data_source != None: 
+        
+        if ds.data_source != None and hasattr(dataset.data_source, "sampling"):
+            # Figure out sampling now
             if ds.data_source.sampling == None and dataset.data_source.sampling != None:
                 ds.data_source.sampling = Sampling()
             elif ds.data_source.sampling != None and dataset.data_source.sampling == None:

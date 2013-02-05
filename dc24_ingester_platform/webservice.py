@@ -44,7 +44,7 @@ class ManagementService(xmlrpc.XMLRPC):
             raise xmlrpc.Fault(1, str(e))
         except PersistenceError, e:
             raise xmlrpc.Fault(1, str(e))
-        except:
+        except Exception, e:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             traceback.print_tb(exc_traceback)
             raise xmlrpc.Fault(1, str(e))
