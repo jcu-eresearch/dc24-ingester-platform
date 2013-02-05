@@ -5,12 +5,15 @@ custom scripts.
 import os
 import sys
 import sandbox
-from dc24_ingester_platform.utils import *
-
+# FIXME These imports seem to be what end up in the script
+import datetime
+import time
+from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
 
 def create_sandbox(cwd):
     sb = sandbox.Sandbox()
     sb.config.allowPath(cwd)
+    sb.config.allowModule("jcudc24ingesterapi", "jcudc24ingesterapi.models", "jcudc24ingesterapi.models.data_entry")
     sb.config.enable("exit")
     return sb
 

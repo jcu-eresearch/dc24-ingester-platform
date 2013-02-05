@@ -31,6 +31,9 @@ def format_timestamp(in_date):
     r = r[0:r.find(".")+4] + 'Z'
     return r
 
+def parse_timestamp_rfc_2822(in_date):
+    return datetime.datetime(*eut.parsedate(in_date)[:6])
+
 def parse_timestamp(date_str):
     """Parse the date time returned by the DAM"""
     (dt, mSecs) = date_str.strip().split(".") 
