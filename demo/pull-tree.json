@@ -1,0 +1,7 @@
+{"class":"pull_data_source",
+"state":{},
+"parameters":{},
+"config":{"url":"http://emu.hpc.jcu.edu.au/tree/split/",
+  "field":"file",
+  "recursive":true}
+}

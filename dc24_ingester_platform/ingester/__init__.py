@@ -105,7 +105,7 @@ class IngesterEngine(object):
         dataset, obs, cwd = self._ingest_queue[0]
         del self._ingest_queue[0]
         # FIXME
-        self.service.persistObservation(dataset, obs.time, obs, cwd)
+        self.service.persistObservation(dataset, obs.timestamp, obs, cwd)
   
     def queue(self, dataset, parameters=None):
         """Enqueue the dataset for fetch and process ASAP"""

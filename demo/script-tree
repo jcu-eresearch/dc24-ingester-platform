@@ -1,0 +1,24 @@
+import os
+import datetime
+from dc24_ingester_platform.utils import *
+
+def process(cwd, data_entries):
+    ret = []
+    started = False
+    for data_entry in data_entries:
+        with open(os.path.join(cwd, data_entry["file"].f_path)) as f:
+            for l in f.readlines():
+                l = l.strip()
+                if not started:
+                    if l == "BEGIN TEMP": started = True
+                elif started and l == "END TEMP":
+                    break
+                else:
+                    # parse line
+                    l = l.split(",")
+                    if len(l) < 3: continue
+                    if l[1] != "28180E08030000BE": continue
+                    new_data_entry = DataEntry(timestamp=datetime.datetime.now())
+                    new_data_entry["temp"] = float(l[2])
+                    ret.append( new_data_entry )
+    return ret

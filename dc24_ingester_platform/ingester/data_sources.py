@@ -20,6 +20,7 @@ from dc24_ingester_platform import IngesterError
 from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
 from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
 from jcudc24ingesterapi.models.data_sources import _DataSource
+from dc24_ingester_platform.ingester.processor import run_script
 
 logger = logging.getLogger("dc24_ingester_platform.ingester.data_sources")
 
@@ -37,7 +38,6 @@ class DataSource(object):
         self.state = state
         self.parameters = parameters
         for param in get_properties(config):
-            logger.info("Setting %s to %s"%(param, getattr(config, param)))
             setattr(self, param, getattr(config, param))
             
     def fetch(self, cwd):
@@ -206,7 +206,7 @@ def create_data_source(data_source_config, state, parameters):
 
 def main():
     args = sys.argv
-    if len(args) != 3:
+    if len(args) not in (3,4):
         print "Usage: %s <config file> <working directory>"%(args[0])
         print """Where config file contains:
         {
@@ -219,6 +219,8 @@ def main():
     
     cfg_file = args[1]
     cwd = args[2]
+    
+    script = args[3] if len(args) > 3 else None
     
     # Validate parameters
     if not os.path.exists(cfg_file):
@@ -243,9 +245,20 @@ def main():
     data_source = create_data_source(data_source_do, cfg["state"], cfg["parameters"])
     
     results = data_source.fetch(cwd)
-    
+    print "Initial results"
+    print "---------------"
     for result in results:
         print str(result)
+        
+    if script != None:
+        with open(script) as f:
+            script = f.read()
+        results = run_script(script, cwd, results)
+        
+        print "Processed results"
+        print "-----------------"
+        for result in results:
+            print str(result)
     return 0
 
 if __name__ == "__main__":

@@ -1,0 +1,5 @@
+{"class":"pull_data_source",
+"state":{},
+"parameters":{},
+"config":{"url":"http://www.abc.net.au","field":"page"}
+}
