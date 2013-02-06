@@ -25,7 +25,7 @@ class IIngesterService(object):
         raise NotImplementedError()
     def getDataset(self, id=None):
         raise NotImplementedError()
-    def getActiveDatasets(self):
+    def getActiveDatasets(self, kind=None):
         raise NotImplementedError()
     def persistSamplerState(self, dataset_id, state):
         raise NotImplementedError()
@@ -41,7 +41,7 @@ class IIngesterService(object):
         raise NotImplementedError()
     def findDatasets(self, **kwargs):
         raise NotImplementedError()
-    def persistObservation(self, dataset, time, obs, cwd):
+    def persistObservation(self, dataset, obs, cwd):
         raise NotImplementedError()
     def search(self, object_type, criteria=None):
         raise NotImplementedError()

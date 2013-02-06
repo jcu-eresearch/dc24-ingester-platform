@@ -79,18 +79,14 @@ class IngesterEngine(object):
                 self.service.logIngesterEvent(dataset.id, datetime.datetime.now(), "INFO", "Processing ")
                 cwd = tempfile.mkdtemp(dir=self.staging_dir)
                 
-                data_entries = data_source.fetch(cwd)
+                data_entries = data_source.fetch(cwd, self.service)
                 
                 if hasattr(data_source, "processing_script") and data_source.processing_script != None:
                     data_entries = run_script(data_source.processing_script, cwd, data_entries)
                 
                 for entry in data_entries:
-                    if isinstance(entry, tuple):
-                        logger.info("storing to non-default dataset")
-                        self.queueIngest(self.service.getDataset(entry[0]), entry[1], cwd)
-                    else:
-                        logger.info("storing to default dataset")
-                        self.queueIngest(dataset, entry, cwd)
+                    entry.dataset = dataset.id
+                    self.queueIngest(entry, cwd)
                         
                 self.service.persistDataSourceState(dataset.id, data_source.state)
             except Exception, e:
@@ -102,23 +98,29 @@ class IngesterEngine(object):
     def processIngestQueue(self):
         """Process one entry in the ingest queue"""
         if len(self._ingest_queue) == 0: return
-        dataset, obs, cwd = self._ingest_queue[0]
+        obs, cwd = self._ingest_queue[0]
         del self._ingest_queue[0]
         # FIXME
-        self.service.persistObservation(dataset, obs, cwd)
+        self.service.persist(obs, cwd)
   
     def queue(self, dataset, parameters=None):
         """Enqueue the dataset for fetch and process ASAP"""
         self._queue.append( (dataset, parameters) )
 
-    def queueIngest(self, dataset, ingest_data, cwd):
+    def queueIngest(self, ingest_data, cwd):
         """Queue a data entry for ingest into the repository"""
-        self._ingest_queue.append((dataset, ingest_data, cwd))
+        self._ingest_queue.append((ingest_data, cwd))
         
-    def notifyNewObservation(self, dataset, timestamp, attrs, cwd):
+    def notifyNewObservation(self, obs, cwd):
         """Notification of new data. On return it is expected that the cwd will be
         cleaned up, so any data that is required should be copied.
         """
+        datasets = self.service.getActiveDatasets(kind="dataset_data_source")
+        datasets = [ds for ds in datasets if ds.data_source.dataset_id==obs.dataset]
+        logger.info("Notified of new observation and %d listeners"%(len(datasets)))
+        for dataset in datasets:
+            self.queue(dataset, {"dataset":obs.dataset, "id":obs.id})
+        
 
 def startIngester(service, staging_dir):
     """Setup and start the ingester loop.

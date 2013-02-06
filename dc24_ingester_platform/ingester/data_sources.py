@@ -40,7 +40,7 @@ class DataSource(object):
         for param in get_properties(config):
             setattr(self, param, getattr(config, param))
             
-    def fetch(self, cwd):
+    def fetch(self, cwd, service=None):
         """Downloads and curate data from data source.
         
         :param cwd: working directory to place binary data
@@ -55,7 +55,7 @@ class PullDataSource(DataSource):
     """
     field = None # The field to ingest into
     recursive = False
-    def fetch(self, cwd):
+    def fetch(self, cwd, service=None):
         """Fetch from a URI using urllib2
         
         :param cwd: working directory to place binary data
@@ -144,7 +144,7 @@ class PushDataSource(DataSource):
     """
     field = None # The field to ingest into
 
-    def fetch(self, cwd):
+    def fetch(self, cwd, service=None):
         """Scans a folder to find new files. The filenames are UTC timestamps that used
         as the timestamp for these samples.
         
@@ -175,15 +175,15 @@ class DatasetDataSource(DataSource):
     This is worked on by the processor script to transform it into
     one or more data entries that conform to the target dataset schema.
     """
-    dataset = None # Source dataset
-    data_entry = None # Source data entry
+    dataset_id = None # Source dataset
 
-    def fetch(self, cwd):
-        """Fetch from a URI using urllib2
+    def fetch(self, cwd, service):
+        """Extract the observation from the repo.
         
         :param cwd: working directory to place binary data
         :returns: dict containing the data to be ingested
         """
+        data_entry = service.getDataEntry(int(self.parameters["dataset"]), int(self.parameters["id"]))
         return [self.data_entry]
 
 data_sources = {"pull_data_source":PullDataSource, "push_data_source":PushDataSource, "dataset_data_source":DatasetDataSource}

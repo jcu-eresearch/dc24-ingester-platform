@@ -157,39 +157,55 @@ class RepositoryDB(IRepositoryService):
         finally:
             s.close()
 
-    def persistObservation(self, dataset, schema, data_entry, cwd):
+    def persistDataEntry(self, dataset, schema, data_entry, cwd):
         # Check the attributes are actually in the schema
         self.validate_schema(data_entry.data, schema.attrs)
         
-        s = orm.sessionmaker(bind=self.engine)()
+        session = orm.sessionmaker(bind=self.engine)()
         try:
             obs = Observation()
             obs.timestamp = data_entry.timestamp
             obs.dataset = dataset.id
             
-            s.add(obs)
-            s.flush()
+            session.add(obs)
+            session.flush()
             
             # Copy all files into place
             self.copy_files(data_entry.data, schema.attrs, cwd, obs, "data_entry")
             
             merge_parameters(obs.attrs, data_entry.data, ObservationAttr)
-            s.merge(obs)
-            s.flush()
-            s.commit()
+            session.merge(obs)
+            session.flush()
+            session.commit()
             
-            entry = DataEntry()
-            entry.dataset = obs.dataset
-            entry.id = obs.id
-            entry.timestamp = obs.timestamp
-            for attr in obs.attrs:
-                if isinstance(schema.attrs[attr.name], FileDataType):
-                    entry[attr.name] = FileObject(f_path=attr.value) 
-                else:
-                    entry[attr.name] = attr.value 
-            return entry
+            return self._getDataEntry(obs.dataset, obs.id, session)
         finally:
-            s.close()
+            session.close()
+            
+    def getDataEntry(self, dataset_id, data_entry_id):
+        
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            return self._getDataEntry(dataset_id, data_entry_id, session)
+        finally:
+            session.close()
+    
+    def _getDataEntry(self, dataset_id, data_entry_id, session):
+        obs = session.query(Observation).filter(Observation.dataset == dataset_id,
+                                                Observation.id == data_entry_id).one()
+        dataset = self.service.getDataset(obs.dataset)
+        schema = self.service.getSchema(dataset.schema)
+        
+        entry = DataEntry()
+        entry.dataset = obs.dataset
+        entry.id = obs.id
+        entry.timestamp = obs.timestamp
+        for attr in obs.attrs:
+            if isinstance(schema.attrs[attr.name], FileDataType):
+                entry[attr.name] = FileObject(f_path=attr.value) 
+            else:
+                entry[attr.name] = attr.value 
+        return entry
             
     def persistDatasetMetadata(self, dataset, schema, attrs, cwd):
         # Check the attributes are actually in the schema

@@ -16,7 +16,8 @@ from dc24_ingester_platform.ingester import IngesterEngine, create_data_source
 from dc24_ingester_platform.ingester.data_sources import DataSource
 from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
 from jcudc24ingesterapi.models.dataset import Dataset
-from jcudc24ingesterapi.models.data_sources import _DataSource, PushDataSource
+from jcudc24ingesterapi.models.data_sources import _DataSource, PushDataSource,\
+    DatasetDataSource
 
 logger = logging.getLogger("dc24_ingester_platform")
 
@@ -53,6 +54,7 @@ class MockService(IIngesterService):
     def __init__(self):
         self.logs = {}
         self.datasets = {}
+        self.listeners = []
         
     def getDataSourceState(self, dataset_id):
         return {}
@@ -68,15 +70,25 @@ class MockService(IIngesterService):
             self.logs[dataset_id] = []
         self.logs[dataset_id].append( (timestamp, level, message) )
 
+    def persist(self, obs, cwd=None):
+        """This mock method will just return the observation to 
+        each of the listeners, without copying or moving anything."""
+        if not isinstance(obs, DataEntry): return
+        for listener in self.listeners:
+            listener.notifyNewObservation(obs, cwd)
+
     def register_observation_listener(self, listener):
-        pass
+        self.listeners.append(listener)
+        
+    def getActiveDatasets(self, kind=None):
+        return [ds for ds in self.datasets.values() if ds.enabled==True and (kind==None or ds.data_source != None and ds.data_source.__xmlrpc_class__==kind)]
 
 class MockSource(DataSource):
     pass
 
 class MockSourceCSV1(MockSource):
     """This simple data source will create a CSV file with 2 lines"""
-    def fetch(self, cwd):
+    def fetch(self, cwd, service=None):
         with open(os.path.join(cwd, "file1"), "w") as f:
             f.write("2,55\n3,2\n")
             
@@ -120,7 +132,7 @@ class TestIngesterProcess(unittest.TestCase):
         
         self.assertEquals(1, len(self.ingester._ingest_queue))
         
-    def testComplexIngest(self):
+    def testPostProcessScript(self):
         """This test performs a complex data ingest, where the main data goes into dataset 1 and 
         the extracted data goes into dataset 2"""
         script = """import os
@@ -145,13 +157,48 @@ def process(cwd, data_entry):
         dataset.data_source = _DataSource(processing_script = script)
         dataset.data_source.__xmlrpc_class__ = "csv1"
         
-        dataset2 = Dataset(dataset_id=2)
+        self.ingester.queue( dataset )
+        self.ingester.processQueue()
+        self.assertEquals(2, len(self.ingester._ingest_queue))
+        
+        
+    def testComplexIngest(self):
+        """This test performs a complex data ingest, where the main data goes into dataset 1 and 
+        the extracted data goes into dataset 2"""
+        script = """import os
+import datetime
+
+from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
+
+def process(cwd, data_entry):
+    data_entry = data_entry[0]
+    ret = []
+    with open(os.path.join(cwd, data_entry["file1"].f_path)) as f:
+        for l in f.readlines():
+            l = l.strip().split(",")
+            if len(l) != 2: continue
+            new_data_entry = DataEntry(timestamp=datetime.datetime.now())
+            new_data_entry["a"] = FileObject(f_path=l[1].strip())
+            ret.append( new_data_entry )
+    return ret
+"""            
+        
+        dataset = Dataset(dataset_id=1, enabled=True)
+        dataset.data_source = _DataSource()
+        dataset.data_source.__xmlrpc_class__ = "csv1"
+        
+        dataset2 = Dataset(dataset_id=2, enabled=True)
+        dataset2.data_source = DatasetDataSource(dataset_id=1, processing_script = script)
         self.service.datasets[1] = dataset
         self.service.datasets[2] = dataset2
         
         self.ingester.queue( dataset )
         self.ingester.processQueue()
-        self.assertEquals(2, len(self.ingester._ingest_queue))
+        self.assertEquals(1, len(self.ingester._ingest_queue))
+        
+        self.ingester.processIngestQueue()
+        
+        self.assertEquals(1, len(self.ingester._queue), "There should be one item from the notification")
         
     def testPush(self):
         """This tests the push ingest by creating a test dir, populating it, then forcing the ingester to run

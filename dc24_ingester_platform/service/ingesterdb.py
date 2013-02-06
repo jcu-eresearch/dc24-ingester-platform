@@ -350,6 +350,8 @@ class IngesterServiceDB(IIngesterService):
         self.samplers = {}
         self.data_source = {}
         self.repo = repo
+        # Give the repo a reference to this service.
+        self.repo.service = self 
         self.obs_listeners = []
 
     def register_observation_listener(self, listener):
@@ -411,13 +413,14 @@ class IngesterServiceDB(IIngesterService):
         finally:
             s.close()
 
-    def persist(self, obj):
+    def persist(self, obj, cwd=None):
+        """The main entry point for persistence. Handles sessions."""
         cls = obj.__xmlrpc_class__
         fn = find_method(self, "persist", cls)
         if fn != None:
             s = orm.sessionmaker(bind=self.engine)()
             try:
-                obj = fn(obj, s, None)
+                obj = fn(obj, s, cwd)
                 s.commit()
                 return obj
             finally:
@@ -516,7 +519,7 @@ class IngesterServiceDB(IIngesterService):
         return self._persist(reg, session)
     
     @method("persist", "location")    
-    def persistLocation(self, location, s, cwd):
+    def persistLocation(self, location, session, cwd):
         loc = Location()
         copy_attrs(location, loc, ["id", "name", "latitude", "longitude", "elevation"])
         # If the repo has a method to persist the dataset then call it and record the output
@@ -524,7 +527,7 @@ class IngesterServiceDB(IIngesterService):
         if fn != None:
             loc.repositoryId = fn(loc)
 
-        return self._persist(loc, s)
+        return self._persist(loc, session)
     
     @method("persist", "dataset_metadata_schema")
     def persistDatasetMetaDataSchema(self, schema, session, cwd):
@@ -642,11 +645,15 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
         
-    def getActiveDatasets(self):
+    def getActiveDatasets(self, kind=None):
         """Returns all enabled datasets."""
         s = orm.sessionmaker(bind=self.engine)()
         try:
-            objs = s.query(Dataset).filter(Dataset.enabled == True).all()
+            objs = s.query(Dataset)
+            if kind != None:
+                objs = objs.join(Dataset.data_source).filter(Dataset.enabled == True, DataSource.kind == kind).all()
+            else:
+                objs = objs.filter(Dataset.enabled == True).all()
             ret_list = []
             for obj in objs:
                 for attr in get_properties(obj):
@@ -732,27 +739,31 @@ class IngesterServiceDB(IIngesterService):
     def findObservations(self, d_id):
         return self.repo.findObservations(self.getDataset(d_id))
 
+    def getDataEntry(self, dataset_id, data_entry_id):
+        return self.repo.getDataEntry(dataset_id, data_entry_id)
+
     @method("persist", "data_entry")
     def persistDataEntry(self, data_entry, session, cwd):
-        dataset_id = data_entry.dataset
-        timestamp = data_entry.timestamp
-        dataset = self.getDataset(dataset_id)
-        return self.persistObservation(dataset, timestamp, data_entry.data, cwd)
-
-    def persistObservation(self, dataset, obs, cwd):
         """Persist the observation to the repository. This method is also responsible for 
         notifying the ingester of any new data, such that triggers can be invoked.
+        
+        Just calls main method, as we don't need a session.
+        
         :param dataset: A dataset dict for the target dataset
         :param obs: Dict of attributes to ingest
         :param cwd: Working directory for this ingest
         """
-        schema = self.getSchema(dataset.schema)
-        if obs.timestamp == None: 
+        if data_entry.timestamp == None: 
             raise ValueError("timestamp is not set")
-        identifier = self.repo.persistObservation(dataset, schema, obs, cwd)
+
+        dataset_id = data_entry.dataset
+        dataset = self.getDataset(dataset_id)
+        schema = self.getSchema(dataset.schema)
+
+        obs = self.repo.persistDataEntry(dataset, schema, data_entry, cwd)
         for listener in self.obs_listeners:
-            listener.notifyNewObservation(identifier, dataset, obs, cwd)
-        return identifier
+            listener.notifyNewObservation(dataset, obs, cwd)
+        return obs
 
     def runIngester(self, d_id):
         """Run the ingester for the given dataset ID"""
