@@ -739,16 +739,17 @@ class IngesterServiceDB(IIngesterService):
         dataset = self.getDataset(dataset_id)
         return self.persistObservation(dataset, timestamp, data_entry.data, cwd)
 
-    def persistObservation(self, dataset, timestamp, obs, cwd):
+    def persistObservation(self, dataset, obs, cwd):
         """Persist the observation to the repository. This method is also responsible for 
         notifying the ingester of any new data, such that triggers can be invoked.
         :param dataset: A dataset dict for the target dataset
-        :param timestamp: DateTime representation of the timestamp
         :param obs: Dict of attributes to ingest
         :param cwd: Working directory for this ingest
         """
         schema = self.getSchema(dataset.schema)
-        identifier = self.repo.persistObservation(dataset, schema, timestamp, obs, cwd)
+        if obs.timestamp == None: 
+            raise ValueError("timestamp is not set")
+        identifier = self.repo.persistObservation(dataset, schema, obs, cwd)
         for listener in self.obs_listeners:
             listener.notifyNewObservation(identifier, dataset, obs, cwd)
         return identifier

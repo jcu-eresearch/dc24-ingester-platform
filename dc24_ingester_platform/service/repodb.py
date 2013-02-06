@@ -157,23 +157,23 @@ class RepositoryDB(IRepositoryService):
         finally:
             s.close()
 
-    def persistObservation(self, dataset, schema, timestamp, attrs, cwd):
+    def persistObservation(self, dataset, schema, data_entry, cwd):
         # Check the attributes are actually in the schema
-        self.validate_schema(attrs, schema.attrs)
+        self.validate_schema(data_entry.data, schema.attrs)
         
         s = orm.sessionmaker(bind=self.engine)()
         try:
             obs = Observation()
-            obs.timestamp = timestamp
+            obs.timestamp = data_entry.timestamp
             obs.dataset = dataset.id
             
             s.add(obs)
             s.flush()
             
             # Copy all files into place
-            self.copy_files(attrs, schema.attrs, cwd, obs, "data_entry")
+            self.copy_files(data_entry.data, schema.attrs, cwd, obs, "data_entry")
             
-            merge_parameters(obs.attrs, attrs, ObservationAttr)
+            merge_parameters(obs.attrs, data_entry.data, ObservationAttr)
             s.merge(obs)
             s.flush()
             s.commit()
