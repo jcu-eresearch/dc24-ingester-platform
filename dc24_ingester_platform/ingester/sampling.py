@@ -15,10 +15,11 @@ class Sampler(object):
     and uses this to determine whether a dataset is due for a new sample"""
     state = None # Holds the state of the Sampler. This is persisted by the ingester.
     
-    def __init__(self, config, state):
+    def __init__(self, config=None, state=None):
         self.state = {}
-        for param in get_properties(config):
-            setattr(self, param, getattr(config, param))
+        if config != None:
+            for param in get_properties(config):
+                setattr(self, param, getattr(config, param))
             
     def sample(self, sample_time, dataset):
         """Returns True or False depending on whether a sample should be made"""
@@ -34,7 +35,8 @@ class PeriodicSampler(Sampler):
     def sample(self, sampler_time, dataset):
         """Run only if the rate worth of seconds has passed since the last run
         >>> import datetime
-        >>> s = PeriodicSampler({}, rate=10)
+        >>> s = PeriodicSampler()
+        >>> s.rate = 10
         >>> dt = datetime.datetime.now()
         >>> s.sample(dt, None)
         True
