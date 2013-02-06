@@ -80,7 +80,7 @@ class PullDataSource(DataSource):
         
         since = None
         new_since = None
-        if "lasttime" in self.state:
+        if "lasttime" in self.state and self.state["lasttime"] != None:
             since = eut.formatdate(calendar.timegm(parse_timestamp(self.state["lasttime"]).timetuple()), usegmt=True)
         
         f_in = None
@@ -184,7 +184,15 @@ class DatasetDataSource(DataSource):
         :returns: dict containing the data to be ingested
         """
         data_entry = service.getDataEntry(int(self.parameters["dataset"]), int(self.parameters["id"]))
-        return [self.data_entry]
+        for k in data_entry.data:
+            if isinstance(data_entry.data[k], FileObject):
+                dst_file = os.path.join(cwd, k)
+                f_in=service.getDataEntryStream(int(self.parameters["dataset"]), int(self.parameters["id"]), k)
+                with open(dst_file, "wb") as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+                f_in.close()
+                data_entry.data[k].f_path = k
+        return [data_entry]
 
 data_sources = {"pull_data_source":PullDataSource, "push_data_source":PushDataSource, "dataset_data_source":DatasetDataSource}
 
