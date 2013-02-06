@@ -200,6 +200,11 @@ def process(cwd, data_entry):
         
         self.assertEquals(1, len(self.ingester._queue), "There should be one item from the notification")
         
+        # This should read the data that was copied over
+# FIXME probably the wrong place for this test as it requires a proper repo service
+#        self.ingester.processQueue()
+#        self.assertEquals(2, len(self.ingester._ingest_queue), "Two output rows")
+        
     def testPush(self):
         """This tests the push ingest by creating a test dir, populating it, then forcing the ingester to run
         """

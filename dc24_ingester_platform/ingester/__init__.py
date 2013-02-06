@@ -13,6 +13,7 @@ import logging
 import datetime
 import tempfile
 import time
+import shutil
 from processor import *
 from dc24_ingester_platform.utils import *
 from twisted.internet.task import LoopingCall
@@ -86,7 +87,7 @@ class IngesterEngine(object):
                 
                 for entry in data_entries:
                     entry.dataset = dataset.id
-                    self.queueIngest(entry, cwd)
+                self.queueIngest(data_entries, cwd)
                         
                 self.service.persistDataSourceState(dataset.id, data_source.state)
             except Exception, e:
@@ -96,12 +97,17 @@ class IngesterEngine(object):
                 self.service.logIngesterEvent(dataset.id, datetime.datetime.now(), "ERROR", str(e))
   
     def processIngestQueue(self):
-        """Process one entry in the ingest queue"""
+        """Process one entry in the ingest queue. 
+        Each element in the queue may be many data entries, from the same data source.
+        """
         if len(self._ingest_queue) == 0: return
-        obs, cwd = self._ingest_queue[0]
+        entries, cwd = self._ingest_queue[0]
         del self._ingest_queue[0]
-        # FIXME
-        self.service.persist(obs, cwd)
+
+        for entry in entries:
+            self.service.persist(entry, cwd)
+        # Cleanup
+        shutil.rmtree(cwd)
   
     def queue(self, dataset, parameters=None):
         """Enqueue the dataset for fetch and process ASAP"""

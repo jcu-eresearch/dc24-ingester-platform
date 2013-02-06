@@ -146,12 +146,12 @@ class RepositoryDB(IRepositoryService):
             if k not in schema:
                 raise ValueError("%s is not in the schema"%(k))
 
-    def findObservations(dataset_id):
+    def findDataEntries(dataset_id):
         """Find all observations within this dataset"""
         s = orm.sessionmaker(bind=self.engine)()
         ret = []
         try:
-            objs = s.query(IngesterLog).filter(Observation.dataset == dataset_id).all()
+            objs = s.query(Observation).filter(Observation.dataset == dataset_id).all()
             for obj in objs:
                 pass
         finally:
@@ -189,6 +189,11 @@ class RepositoryDB(IRepositoryService):
             return self._getDataEntry(dataset_id, data_entry_id, session)
         finally:
             session.close()
+            
+    def getDataEntryStream(self, dataset_id, data_entry_id, attr):
+        """Get a file stream for the data entry"""
+        data_entry = self.getDataEntry(dataset_id, data_entry_id)
+        return open(data_entry[attr].f_path, "rb")
     
     def _getDataEntry(self, dataset_id, data_entry_id, session):
         obs = session.query(Observation).filter(Observation.dataset == dataset_id,

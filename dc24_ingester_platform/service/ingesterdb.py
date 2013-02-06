@@ -742,6 +742,9 @@ class IngesterServiceDB(IIngesterService):
     def getDataEntry(self, dataset_id, data_entry_id):
         return self.repo.getDataEntry(dataset_id, data_entry_id)
 
+    def getDataEntryStream(self, dataset_id, data_entry_id, attr):
+        return self.repo.getDataEntryStream(dataset_id, data_entry_id, attr)
+
     @method("persist", "data_entry")
     def persistDataEntry(self, data_entry, session, cwd):
         """Persist the observation to the repository. This method is also responsible for 
@@ -762,7 +765,7 @@ class IngesterServiceDB(IIngesterService):
 
         obs = self.repo.persistDataEntry(dataset, schema, data_entry, cwd)
         for listener in self.obs_listeners:
-            listener.notifyNewObservation(dataset, obs, cwd)
+            listener.notifyNewObservation(obs, cwd)
         return obs
 
     def runIngester(self, d_id):

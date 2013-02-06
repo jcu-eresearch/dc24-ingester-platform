@@ -5,7 +5,7 @@ facade, to aggregate all the operations into transactionally safe operations.
 class IRepositoryService(object):
     """Interface for data management service
     """
-    def persistObservation(self, dataset, schema, time, obs, cwd):
+    def persistDataEntry(self, dataset, schema, time, obs, cwd):
         """Persist the observation into the repository.
 
         :param dataset: the dataset object which the observation will be persisted in
@@ -41,7 +41,11 @@ class IIngesterService(object):
         raise NotImplementedError()
     def findDatasets(self, **kwargs):
         raise NotImplementedError()
-    def persistObservation(self, dataset, obs, cwd):
+    def persistDataEntry(self, obs, cwd):
+        raise NotImplementedError()
+    def getDataEntry(self, dataset_id, data_entry_id):
+        raise NotImplementedError()
+    def getDataEntryStream(self, dataset_id, data_entry_id, attr):
         raise NotImplementedError()
     def search(self, object_type, criteria=None):
         raise NotImplementedError()
