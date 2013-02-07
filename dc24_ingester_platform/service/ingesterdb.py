@@ -751,6 +751,7 @@ class IngesterServiceDB(IIngesterService):
             session.close()
     
     def getSamplerState(self, ds_id):
+        """Gets the sampler state as a dict. All values will be string."""
         session = orm.sessionmaker(bind=self.engine)()
         try:
             objs = session.query(SamplerState).filter(SamplerState.dataset_id == ds_id).all()
@@ -791,6 +792,7 @@ class IngesterServiceDB(IIngesterService):
             session.close()
 
     def getDataSourceState(self, ds_id):
+        """Gets the data source state as a dict. All values will be string."""
         session = orm.sessionmaker(bind=self.engine)()
         try:
             objs = session.query(DataSourceState).filter(DataSourceState.dataset_id == ds_id).all()
