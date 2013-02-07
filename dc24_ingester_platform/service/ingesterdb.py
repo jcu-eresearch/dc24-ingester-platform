@@ -187,15 +187,22 @@ class SamplerState(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String)
     value = Column(String)
-    dataset_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))
+    dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
  
 class DataSourceState(Base):
     __tablename__ = "DATA_SOURCE_STATE"
     id = Column(Integer, primary_key=True)
     name = Column(String)
     value = Column(String)
-    dataset_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))   
+    dataset_id = Column(Integer, ForeignKey("DATASETS.id"))   
     
+def dict_to_obj(data):
+    """Copies a dict onto an object"""
+    obj = object()
+    for k in data:
+        setattr(obj, k, data[k])
+    return obj
+
 def merge_parameters(src, dst, klass, name_attr="name", value_attr="value", ignore_props=[]):
     """This method updates col_orig removing any that aren't in col_new, updating those that are, and adding new ones
     using klass as the constructor
@@ -286,6 +293,7 @@ def copy_attrs(src, dst, attrs):
                 setattr(dst, attr, dao_to_domain(v))
             else:
                 setattr(dst, attr, v)
+                
 def copy_parameters(src, dst, attrs, name_attr="name", value_attr="value"):
     """Copy from a property list to an object"""
     for attr in src:
@@ -710,19 +718,85 @@ class IngesterServiceDB(IIngesterService):
         finally:
             s.close()
             
-    def persistSamplerState(self, s_id, state):
-        self.samplers[s_id] = state
+    def persistSamplerState(self, ds_id, state):
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            objs = session.query(SamplerState).filter(SamplerState.dataset_id == ds_id).all()
+            
+            state = state.copy()
+            to_del = []
+            
+            for obj in objs:
+                prop_name = getattr(obj,"name")
+                if prop_name in state:
+                    # Update
+                    setattr(obj, "value", state[prop_name])
+                    state.remove(prop_name)
+                else:
+                    # Delete pending
+                    to_del.append(obj)
+            # Delete
+            for obj in to_del:
+                session.remove(obj)
+            # Add
+            for k in state:
+                obj = SamplerState()
+                obj.dataset_id = ds_id
+                setattr(obj, "name", k)
+                setattr(obj, "value", state[k])
+                session.add(obj)
+            session.commit()
+            session.flush()
+        finally:
+            session.close()
     
-    def getSamplerState(self, s_id):
-        if id not in self.samplers: return {}
-        return self.samplers[s_id]
+    def getSamplerState(self, ds_id):
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            objs = session.query(SamplerState).filter(SamplerState.dataset_id == ds_id).all()
+            return parameters_to_dict(objs)
+        finally:
+            session.close()
 
     def persistDataSourceState(self, ds_id, state):
-        self.data_source[ds_id] = state
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            objs = session.query(DataSourceState).filter(DataSourceState.dataset_id == ds_id).all()
+            
+            state = state.copy()
+            to_del = []
+            
+            for obj in objs:
+                prop_name = getattr(obj,"name")
+                if prop_name in state:
+                    # Update
+                    setattr(obj, "value", state[prop_name])
+                    state.remove(prop_name)
+                else:
+                    # Delete pending
+                    to_del.append(obj)
+            # Delete
+            for obj in to_del:
+                session.remove(obj)
+            # Add
+            for k in state:
+                obj = DataSourceState()
+                obj.dataset_id = ds_id
+                setattr(obj, "name", k)
+                setattr(obj, "value", state[k])
+                session.add(obj)
+            session.commit()
+            session.flush()
+        finally:
+            session.close()
 
     def getDataSourceState(self, ds_id):
-        if ds_id not in self.data_source: return {}
-        return self.data_source[ds_id]
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            objs = session.query(DataSourceState).filter(DataSourceState.dataset_id == ds_id).all()
+            return parameters_to_dict(objs)
+        finally:
+            session.close()
 
     def findDatasets(self, **kwargs):
         """Find all datasets with the provided attributes"""

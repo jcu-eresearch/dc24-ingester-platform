@@ -166,5 +166,23 @@ class TestServiceModels(unittest.TestCase):
         
         self.assertRaises(PersistenceError, self.service.persist, schema2)
 
+    def test_data_source_state(self):
+        """Test that the state of samplers and data sources can be persisted."""
+        sampler_state = self.service.getSamplerState(1)
+        self.assertEquals(0, len(sampler_state))
+        self.service.persistSamplerState(1, {"test":"abc","test2":123})
+        sampler_state = self.service.getSamplerState(1)
+        self.assertEquals(2, len(sampler_state))
+        self.assertEquals("abc", sampler_state["test"])
+        self.assertEquals("123", sampler_state["test2"])
+        
+        data_source_state = self.service.getDataSourceState(1)
+        self.assertEquals(0, len(data_source_state))
+        self.service.persistDataSourceState(1, {"test":"abc","test2":123})
+        data_source_state = self.service.getDataSourceState(1)
+        self.assertEquals(2, len(data_source_state))
+        self.assertEquals("abc", data_source_state["test"])
+        self.assertEquals("123", data_source_state["test2"])
+        
 if __name__ == '__main__':
     unittest.main()
