@@ -80,7 +80,7 @@ class PullDataSource(DataSource):
         
         since = None
         new_since = None
-        if "lasttime" in self.state and self.state["lasttime"] != None:
+        if "lasttime" in self.state and self.state["lasttime"] != None and len(self.state["lasttime"]) > 0:
             since = eut.formatdate(calendar.timegm(parse_timestamp(self.state["lasttime"]).timetuple()), usegmt=True)
         
         f_in = None
