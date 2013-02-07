@@ -731,13 +731,13 @@ class IngesterServiceDB(IIngesterService):
                 if prop_name in state:
                     # Update
                     setattr(obj, "value", state[prop_name])
-                    state.remove(prop_name)
+                    del state[prop_name]
                 else:
                     # Delete pending
                     to_del.append(obj)
             # Delete
             for obj in to_del:
-                session.remove(obj)
+                session.delete(obj)
             # Add
             for k in state:
                 obj = SamplerState()
@@ -772,13 +772,13 @@ class IngesterServiceDB(IIngesterService):
                 if prop_name in state:
                     # Update
                     setattr(obj, "value", state[prop_name])
-                    state.remove(prop_name)
+                    del state[prop_name]
                 else:
                     # Delete pending
                     to_del.append(obj)
             # Delete
             for obj in to_del:
-                session.remove(obj)
+                session.delete(obj)
             # Add
             for k in state:
                 obj = DataSourceState()

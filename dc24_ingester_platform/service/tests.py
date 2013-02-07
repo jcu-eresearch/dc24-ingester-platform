@@ -176,6 +176,11 @@ class TestServiceModels(unittest.TestCase):
         self.assertEquals("abc", sampler_state["test"])
         self.assertEquals("123", sampler_state["test2"])
         
+        del sampler_state["test"]
+        self.service.persistSamplerState(1, sampler_state)
+        sampler_state = self.service.getSamplerState(1)
+        self.assertEquals(1, len(sampler_state))
+        
         data_source_state = self.service.getDataSourceState(1)
         self.assertEquals(0, len(data_source_state))
         self.service.persistDataSourceState(1, {"test":"abc","test2":123})
@@ -184,5 +189,10 @@ class TestServiceModels(unittest.TestCase):
         self.assertEquals("abc", data_source_state["test"])
         self.assertEquals("123", data_source_state["test2"])
         
+        del data_source_state["test"]
+        self.service.persistDataSourceState(1, data_source_state)
+        data_source_state = self.service.getDataSourceState(1)
+        self.assertEquals(1, len(data_source_state))
+                
 if __name__ == '__main__':
     unittest.main()
