@@ -79,7 +79,6 @@ class PullDataSource(DataSource):
         ret = []
         
         since = None
-        new_since = None
         if "lasttime" in self.state and self.state["lasttime"] != None and len(self.state["lasttime"]) > 0:
             since = eut.formatdate(calendar.timegm(parse_timestamp(self.state["lasttime"]).timetuple()), usegmt=True)
         
@@ -106,8 +105,8 @@ class PullDataSource(DataSource):
                     ret.append(new_data_entry)
                     found += 1
                     
-                    if new_since == None or timestamp > new_since:
-                        new_since = timestamp
+                    if since == None or timestamp > since:
+                        since = timestamp
                     
                 except urllib2.HTTPError, e:
                     if e.code == 304: 
@@ -115,7 +114,7 @@ class PullDataSource(DataSource):
         finally:
             if f_in != None: f_in.close()
             
-        self.state["lasttime"] = format_timestamp(new_since) if new_since != None else None
+        self.state["lasttime"] = format_timestamp(since) if since != None else None
         return ret
         
     def fetch_single(self, cwd):
