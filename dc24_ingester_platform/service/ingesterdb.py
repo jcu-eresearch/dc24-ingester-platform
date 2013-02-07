@@ -13,7 +13,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm.exc import NoResultFound
 import decimal
 import logging
-from dc24_ingester_platform.utils import parse_timestamp
+from dc24_ingester_platform.utils import parse_timestamp, format_timestamp
 
 import jcudc24ingesterapi.models.data_entry
 import jcudc24ingesterapi.models.locations
@@ -23,6 +23,7 @@ import jcudc24ingesterapi.schemas.data_entry_schemas
 import jcudc24ingesterapi.schemas.data_types
 from jcudc24ingesterapi.models.locations import LocationOffset
 from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
+import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,13 @@ def obj_to_dict(obj, klass=None):
     ret = {}
     for attr in dir(obj):
         if attr.startswith("_") or attr == "metadata": continue
-        if type(getattr(obj, attr)) in (str, int, float, unicode, dict, bool, type(None)):
-            ret[attr] = getattr(obj, attr)
-        elif type(getattr(obj, attr)) == decimal.Decimal:
-            ret[attr] = float(getattr(obj, attr))
+        v = getattr(obj, attr)
+        if type(v) in (str, int, float, unicode, dict, bool, type(None)):
+            ret[attr] = v
+        elif type(v) == decimal.Decimal:
+            ret[attr] = float(v)
+        elif type(v) == datetime.datetime:
+            ret[attr] = format_timestamp(v)
     if klass != None: ret["class"] = klass
     elif hasattr(obj, "__xmlrpc_class__"): ret["class"] = obj.__xmlrpc_class__
 
@@ -176,6 +180,7 @@ class SchemaAttribute(Base):
 
 class IngesterLog(Base):
     __tablename__ = "INGESTER_LOG"
+    __xmlrpc_class__ = "ingester_log"
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime)
     level = Column(String)
