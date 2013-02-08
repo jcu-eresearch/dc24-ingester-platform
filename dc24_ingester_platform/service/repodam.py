@@ -69,13 +69,17 @@ class RepositoryDAM(BaseRepositoryService):
     All objects/DTOs passed in and out of this service are dicts. This service protects the storage layer.
     """
     def __init__(self, url):
-        self.repo = dam.DAM(url)
+        self._url = url
         # A list of new obj ids that will be deleted on reset
         self.new_objs = []
     
+    def connection(self):
+        return dam.DAM(self._url)
+    
     def reset(self):
         logger.info("Deleting items from the DAM")
-        self.repo.delete(self.new_objs)
+        with self.connection() as repo:
+            repo.delete(self.new_objs)
 
     @method("persist", "schema")
     def persistSchema(self, schema):
@@ -85,7 +89,8 @@ class RepositoryDAM(BaseRepositoryService):
                 "name":str(time.time()),
                 "identifier":str(int(time.time())),
                 "attributes":attrs}
-        dam_schema = self.repo.ingest(dam_schema)
+        with self.connection() as repo:
+            dam_schema = repo.ingest(dam_schema)
         self.new_objs.append(dam_schema["id"])
         return dam_schema["id"]
 
@@ -96,7 +101,8 @@ class RepositoryDAM(BaseRepositoryService):
             "latitude":location.latitude,
             "longitude":location.longitude,
             "zones":[]}
-        dam_location = self.repo.ingest(dam_location)
+        with self.connection() as repo:
+            dam_location = repo.ingest(dam_location)
         self.new_objs.append(dam_location["id"])
         return dam_location["id"]
 
@@ -106,39 +112,42 @@ class RepositoryDAM(BaseRepositoryService):
             "location":location.repository_id,
             "zone":"",
             "schema":schema.repository_id}
-        dam_dataset = self.repo.ingest(dam_dataset)
+        with self.connection() as repo:
+            dam_dataset = repo.ingest(dam_dataset)
         self.new_objs.append(dam_dataset["id"])
         return dam_dataset["id"]
     
     def _persist_attributes(self, obs, attributes, cwd):
-        for attr_name in attributes: 
-            attr = {"name":attr_name} # DAM Attribute
-            if isinstance(attributes[attr_name], FileObject):
-                with open(os.path.join(cwd, attributes[attr_name].f_path), "rb") as f:
-                    self.repo.ingest_attribute(obs["id"], attr, f)
-            else:
-                attr["value"] = attributes[attr_name]
-                self.repo.ingest_attribute(obs["id"], attr)
+        with self.connection() as repo:
+            for attr_name in attributes: 
+                attr = {"name":attr_name} # DAM Attribute
+                if isinstance(attributes[attr_name], FileObject):
+                    with open(os.path.join(cwd, attributes[attr_name].f_path), "rb") as f:
+                        repo.ingest_attribute(obs["id"], attr, f)
+                else:
+                    attr["value"] = attributes[attr_name]
+                    repo.ingest_attribute(obs["id"], attr)
     
     def persistDataEntry(self, dataset, schema, data_entry, cwd):
         # Check the attributes are actually in the schema
         self.validate_schema(data_entry.data, schema.attrs)
         
-        dam_obs = {"dam_type":"ObservationMetaData",
-            "dataset":dataset.repository_id,
-            "time":dam.format_time(data_entry.timestamp)}
-        dam_obs = self.repo.ingest(dam_obs, lock=True)
-        
-        self._persist_attributes(dam_obs, data_entry.data, cwd)
-        
-        self.repo.unlock(dam_obs["id"])
-        self.new_objs.append(dam_obs["id"])
+        with self.connection() as repo:
+            dam_obs = {"dam_type":"ObservationMetaData",
+                "dataset":dataset.repository_id,
+                "time":dam.format_time(data_entry.timestamp)}
+            dam_obs = repo.ingest(dam_obs, lock=True)
+            
+            self._persist_attributes(dam_obs, data_entry.data, cwd)
+            
+            repo.unlock(dam_obs["id"])
+            self.new_objs.append(dam_obs["id"])
         
         return self.getDataEntry(dataset.id, dam_obs["id"])
         
     def getDataEntry(self, dataset_id, data_entry_id):
-        print "getting", data_entry_id
-        dam_obj = self.repo.getTuples(data_entry_id)
+        with self.connection() as repo:
+            dam_obj = repo.getTuples(data_entry_id)
         if dam_obj == None and len(dam_obj) == 1: return None
         dam_obj = dam_obj[0]
         data_entry = DataEntry()
@@ -156,6 +165,7 @@ class RepositoryDAM(BaseRepositoryService):
         return data_entry
 
     def getDataEntryStream(self, dataset_id, data_entry_id, attr):
-        return self.repo.retrieve_attribute(data_entry_id, attr)
+        repo = self.connection()
+        return repo.retrieve_attribute(data_entry_id, attr, close_connection=True)
     
     
