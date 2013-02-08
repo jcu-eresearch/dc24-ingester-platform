@@ -2,9 +2,15 @@
 facade, to aggregate all the operations into transactionally safe operations.
 """
 
-class IRepositoryService(object):
+class BaseRepositoryService(object):
     """Interface for data management service
     """
+    def validate_schema(self, attrs, schema):
+        """Validate the attributes against the schema"""
+        for k in attrs:
+            if k not in schema:
+                raise ValueError("%s is not in the schema"%(k))
+            
     def persistDataEntry(self, dataset, schema, time, obs, cwd):
         """Persist the observation into the repository.
 
@@ -14,6 +20,12 @@ class IRepositoryService(object):
         :param observation: observation object
         :param cwd: current working directory which all files stored in the observation are relative to
         """
+        raise NotImplementedError()
+    
+    def getDataEntry(self, dataset_id, data_entry_id):
+        raise NotImplementedError()
+
+    def getDataEntryStream(self, dataset_id, data_entry_id, attr):
         raise NotImplementedError()
 
 class IIngesterService(object):

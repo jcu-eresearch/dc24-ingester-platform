@@ -3,13 +3,15 @@ Created on Oct 5, 2012
 
 @author: nigel
 """
-from dc24_ingester_platform.service import IRepositoryService, method
+from dc24_ingester_platform.service import BaseRepositoryService, method
 import decimal
 import logging
 import os
 import shutil
 import dam
 import time
+from jcudc24ingesterapi.models.data_entry import FileObject, DataEntry
+from dc24_ingester_platform.utils import parse_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +63,7 @@ def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="val
         col_orig.append(obj)
         
 
-class RepositoryDAM(IRepositoryService):
+class RepositoryDAM(BaseRepositoryService):
     """This service provides DAO operations for the ingester service.
     
     All objects/DTOs passed in and out of this service are dicts. This service protects the storage layer.
@@ -101,33 +103,59 @@ class RepositoryDAM(IRepositoryService):
     @method("persist", "dataset")
     def persistDataset(self, dataset, schema, location):
         dam_dataset = {"dam_type":"DatasetMetaData",
-            "location":location.repositoryId,
+            "location":location.repository_id,
             "zone":"",
-            "schema":schema.repositoryId}
+            "schema":schema.repository_id}
         dam_dataset = self.repo.ingest(dam_dataset)
         self.new_objs.append(dam_dataset["id"])
         return dam_dataset["id"]
     
-    def persistObservation(self, dataset, schema, timestamp, attrs, cwd):
-        schema = schema["attributes"]
+    def _persist_attributes(self, obs, attributes, cwd):
+        for attr_name in attributes: 
+            attr = {"name":attr_name} # DAM Attribute
+            if isinstance(attributes[attr_name], FileObject):
+                with open(os.path.join(cwd, attributes[attr_name].f_path), "rb") as f:
+                    self.repo.ingest_attribute(obs["id"], attr, f)
+            else:
+                attr["value"] = attributes[attr_name]
+                self.repo.ingest_attribute(obs["id"], attr)
+    
+    def persistDataEntry(self, dataset, schema, data_entry, cwd):
         # Check the attributes are actually in the schema
-        for k in attrs:
-            if k not in schema:
-                raise ValueError("%s is not in the schema"%(k))
+        self.validate_schema(data_entry.data, schema.attrs)
         
         dam_obs = {"dam_type":"ObservationMetaData",
-            "dataset":dataset["repositoryId"],
-            "time":dam.format_time(timestamp)}
+            "dataset":dataset.repository_id,
+            "time":dam.format_time(data_entry.timestamp)}
         dam_obs = self.repo.ingest(dam_obs, lock=True)
-        for k in attrs:
-            attr = {"name":k}
-            if schema[k] == "file":
-                f = open(os.path.join(cwd, attrs[k]), "rb")
-                self.repo.ingest_attribute(dam_obs["id"], attr, f)
-                f.close()
-            else:
-                attr["value"] = attrs[k]
-                self.repo.ingest_attribute(dam_obs["id"], attr)
+        
+        self._persist_attributes(dam_obs, data_entry.data, cwd)
+        
         self.repo.unlock(dam_obs["id"])
         self.new_objs.append(dam_obs["id"])
+        
+        return self.getDataEntry(dataset.id, dam_obs["id"])
+        
+    def getDataEntry(self, dataset_id, data_entry_id):
+        print "getting", data_entry_id
+        dam_obj = self.repo.getTuples(data_entry_id)
+        if dam_obj == None and len(dam_obj) == 1: return None
+        dam_obj = dam_obj[0]
+        data_entry = DataEntry()
+        data_entry.id = data_entry_id
+        data_entry.dataset = dataset_id
+        data_entry.timestamp = parse_timestamp(dam_obj["metadata"]["time"])
+        for attr in dam_obj["data"]:
+            if "size" in attr:
+                fo = FileObject()
+                fo.f_name = attr["name"]
+                fo.mime_type = attr["mimeType"]
+                data_entry.data[attr["name"]] = fo
+            else:
+                data_entry.data[attr["name"]] = attr["value"]
+        return data_entry
 
+    def getDataEntryStream(self, dataset_id, data_entry_id, attr):
+        return self.repo.retrieve_attribute(data_entry_id, attr)
+    
+    
