@@ -85,7 +85,7 @@ class RepositoryDAM(BaseRepositoryService):
     def persistSchema(self, schema):
         attrs = [{"name":attr.name, "identifier":attr.name, "type":attr.kind} for attr in schema.attributes]
         dam_schema = {"dam_type":"SchemaMetaData",
-                "type":"ObservationMetaData",
+                "type":"DatasetMetaData",
                 "name":str(time.time()),
                 "identifier":str(int(time.time())),
                 "attributes":attrs}
