@@ -84,6 +84,12 @@ class RepositoryDAM(BaseRepositoryService):
     @method("persist", "schema")
     def persistSchema(self, schema):
         attrs = [{"name":attr.name, "identifier":attr.name, "type":attr.kind} for attr in schema.attributes]
+        for parent in schema.extends:
+            attrs += [{"name":attr.name, "identifier":attr.name, "type":attr.kind} for attr in parent.attributes]
+
+        for attr in attrs:
+            if attr["type"] in ("integer", "double"):
+                attr["type"] = "numerical"
         dam_schema = {"dam_type":"SchemaMetaData",
                 "type":"DatasetMetaData",
                 "name":str(time.time()),
