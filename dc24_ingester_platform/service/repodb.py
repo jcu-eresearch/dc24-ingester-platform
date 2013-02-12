@@ -4,7 +4,7 @@ Created on Oct 5, 2012
 @author: nigel
 """
 from dc24_ingester_platform.utils import format_timestamp, parse_timestamp
-from dc24_ingester_platform.service import IRepositoryService
+from dc24_ingester_platform.service import BaseRepositoryService
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, DECIMAL, Boolean, ForeignKey, DateTime
 import sqlalchemy.orm as orm
@@ -111,7 +111,7 @@ def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="val
         col_orig.append(obj)
         
 
-class RepositoryDB(IRepositoryService):
+class RepositoryDB(BaseRepositoryService):
     """This service provides DAO operations for the ingester service.
     
     All objects/DTOs passed in and out of this service are dicts. This service protects the storage layer.
@@ -140,12 +140,6 @@ class RepositoryDB(IRepositoryService):
                 shutil.copyfile(os.path.join(cwd, attrs[k].f_path), dest_file_name)
                 attrs[k].f_path = dest_file_name
     
-    def validate_schema(self, attrs, schema):
-        """Validate the attributes against the schema"""
-        for k in attrs:
-            if k not in schema:
-                raise ValueError("%s is not in the schema"%(k))
-
     def findDataEntries(dataset_id):
         """Find all observations within this dataset"""
         s = orm.sessionmaker(bind=self.engine)()

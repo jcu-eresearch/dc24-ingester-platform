@@ -151,7 +151,7 @@ def process(cwd, data_entry):
             new_data_entry["a"] = FileObject(f_path=l[1].strip())
             ret.append( new_data_entry )
     return ret
-"""            
+"""
         
         dataset = Dataset(dataset_id=1)
         dataset.data_source = _DataSource(processing_script = script)
@@ -159,7 +159,8 @@ def process(cwd, data_entry):
         
         self.ingester.queue( dataset )
         self.ingester.processQueue()
-        self.assertEquals(2, len(self.ingester._ingest_queue))
+        self.assertEquals(1, len(self.ingester._ingest_queue))
+        self.assertEquals(2, len(self.ingester._ingest_queue[0][0]))
         
         
     def testComplexIngest(self):

@@ -123,7 +123,7 @@ class IngesterEngine(object):
         """
         datasets = self.service.getActiveDatasets(kind="dataset_data_source")
         datasets = [ds for ds in datasets if ds.data_source.dataset_id==obs.dataset]
-        logger.info("Notified of new observation and %d listeners"%(len(datasets)))
+        logger.info("Notified of new observation, telling %d listeners"%(len(datasets)))
         for dataset in datasets:
             self.queue(dataset, {"dataset":obs.dataset, "id":obs.id})
         

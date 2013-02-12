@@ -98,7 +98,7 @@ class Location(Base):
     longitude = Column(DECIMAL)
     name = Column(String)
     elevation = Column(DECIMAL)
-    repositoryId = Column(String)
+    repository_id = Column(String)
     #region = orm.relationship("Region", uselist=False)
 
 class Dataset(Base):
@@ -111,7 +111,7 @@ class Dataset(Base):
     enabled = Column(Boolean, default=True)
     description = Column(String)
     redbox_uri = Column(String)
-    repositoryId = Column(String)
+    repository_id = Column(String)
     # FIXME: Move to separate schema
     x = Column(DECIMAL)
     y = Column(DECIMAL)
@@ -163,7 +163,7 @@ class Schema(Base):
     name = Column(String)
     for_ = Column(String, name="for")
     attributes = orm.relationship("SchemaAttribute")
-    repositoryId = Column(String)
+    repository_id = Column(String)
     extends = relationship("Schema",
         secondary=schema_to_schema,
         primaryjoin=id==schema_to_schema.c.child_id,
@@ -317,7 +317,7 @@ def dao_to_domain(dao):
     elif type(dao) == Schema:
         domain = domain_marshaller.class_for(dao.for_ + "_schema")()
         
-        copy_attrs(dao, domain, ["id", "name"])
+        copy_attrs(dao, domain, ["id", "name", "repository_id"])
         domain.extends.extend(dao.extends)
         for attr in dao.attributes:
             attr_ = None
@@ -333,10 +333,10 @@ def dao_to_domain(dao):
             domain.addAttr(attr_)
     elif type(dao) == Location:
         domain = jcudc24ingesterapi.models.locations.Location()
-        copy_attrs(dao, domain, ["id", "name", "latitude", "longitude", "elevation"])
+        copy_attrs(dao, domain, ["id", "name", "latitude", "longitude", "elevation", "repository_id"])
     elif type(dao) == Dataset:
         domain = jcudc24ingesterapi.models.dataset.Dataset()
-        copy_attrs(dao, domain, ["id", "location", "schema", "enabled", "description", "redbox_uri", "repositoryId"])
+        copy_attrs(dao, domain, ["id", "location", "schema", "enabled", "description", "redbox_uri", "repository_id"])
         if dao.x != None:
             domain.location_offset = LocationOffset(dao.x, dao.y, dao.z)
         if dao.data_source != None:
@@ -508,7 +508,7 @@ class IngesterServiceDB(IIngesterService):
         # If the repo has a method to persist the dataset then call it and record the output
         fn = find_method(self.repo, "persist", "dataset")
         if fn != None:
-            ds.repositoryId = fn(ds, schema, location)
+            ds.repository_id = fn(ds, schema, location)
 
         self._persist(ds, session)
         return self._getDataset(ds.id, session)
@@ -538,7 +538,7 @@ class IngesterServiceDB(IIngesterService):
         # If the repo has a method to persist the dataset then call it and record the output
         fn = find_method(self.repo, "persist", "location")
         if fn != None:
-            loc.repositoryId = fn(loc)
+            loc.repository_id = fn(loc)
 
         return self._persist(loc, session)
     
@@ -596,7 +596,7 @@ class IngesterServiceDB(IIngesterService):
         # If the repo has a method to persist the dataset then call it and record the output
         fn = find_method(self.repo, "persist", "schema")
         if fn != None:
-            schema_.repositoryId = fn(schema_)
+            schema_.repository_id = fn(schema_)
 
         return self._persist(schema_, s)
         
