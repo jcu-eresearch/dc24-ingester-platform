@@ -1,6 +1,7 @@
 *.pyc
 *.egg-info
 *.log
+*.iml
 bin
 develop-eggs
 eggs

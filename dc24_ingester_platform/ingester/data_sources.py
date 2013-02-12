@@ -14,6 +14,8 @@ import urlparse
 import sys
 import json
 import pprint
+from dc24_ingester_platform.ingester.sos import SOS, SOSVersions, create_namespace_dict, SOSMimeTypes
+from lxml import etree
 
 from dc24_ingester_platform.utils import *
 from dc24_ingester_platform import IngesterError
@@ -193,7 +195,43 @@ class DatasetDataSource(DataSource):
                 data_entry.data[k].f_path = k
         return [data_entry]
 
-data_sources = {"pull_data_source":PullDataSource, "push_data_source":PushDataSource, "dataset_data_source":DatasetDataSource}
+class SOSScraperDataSource(DataSource):
+    def fetch(self, cwd):
+        sos = SOS(self.url, SOSVersions.v_1_0_0)
+        caps = sos.getCapabilities(["ALL"])
+
+        namespaces = create_namespace_dict()
+        allowed = caps.xpath("/sos:Capabilities/ows:OperationsMetadata/ows:Operation[@name='InsertObservation']"+
+                             "/ows:Parameter[@name='AssignedSensorId']/ows:AllowedValues", namespaces=namespaces)
+        if len(allowed) != 1:
+            raise DataSourceError("AssignedSensorId from xpath match, found: %s"%len(allowed))
+        sensorIDS = [x.text for x in allowed[0].xpath("ows:Value", namespaces=namespaces)]
+
+        ret = []
+        for sensorID in sensorIDS:
+            sml = sos.describeSensor(sensorID)
+            sensorml_dir = os.path.join(cwd,"sensorml")
+            if not os.path.exists(sensorml_dir):
+                os.makedirs(sensorml_dir)
+            sml_path = os.path.join(sensorml_dir, sensorID)
+            with open(sml_path, "wb") as sensorml:
+                sensorml.write(etree.tostring(sml,pretty_print=True))
+                timestamp = datetime.datetime.now()
+                new_data_entry = DataEntry(timestamp=timestamp)
+                new_data_entry[self.field] = FileObject(f_path=sml_path, mime_type=SOSMimeTypes.sensorML_1_0_1 )
+                ret.append(new_data_entry)
+
+
+        return ret
+
+
+
+data_sources = {
+    "pull_data_source":PullDataSource,
+    "push_data_source":PushDataSource,
+    "dataset_data_source":DatasetDataSource,
+    "sos_scraper_data_source": SOSScraperDataSource
+}
 
 class NoSuchDataSource(Exception):
     """An exception that occurs when there is no sampler available."""
