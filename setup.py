@@ -1,6 +1,6 @@
 from setuptools import setup
  
-setup(name='DC24_Ingester_Platform',
+setup(name='jcu.dc24.ingesterplatform',
       version='0.0.1dev',
       description='DC24 Ingester Platform',
       author='Nigel Sim',
