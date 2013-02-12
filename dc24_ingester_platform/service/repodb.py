@@ -16,6 +16,7 @@ import os
 import shutil
 from jcudc24ingesterapi.schemas.data_types import FileDataType
 from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
+from jcudc24ingesterapi.models.metadata import DatasetMetadataEntry, DataEntryMetadataEntry
 
 logger = logging.getLogger(__name__)
 
@@ -212,22 +213,28 @@ class RepositoryDB(BaseRepositoryService):
         
         s = orm.sessionmaker(bind=self.engine)()
         try:
-            obs = DatasetMetadata()
-            obs.dataset = dataset.id
-            obs.schema = schema.id
+            md = DatasetMetadata()
+            md.dataset = dataset.id
+            md.schema = schema.id
             
-            s.add(obs)
+            s.add(md)
             s.flush()
             
             # Copy all files into place
-            self.copy_files(attrs, schema.attrs, cwd, obs, "dataset_metadata")
+            self.copy_files(attrs, schema.attrs, cwd, md, "dataset_metadata")
             
-            merge_parameters(obs.attrs, attrs, DatasetMetadataAttr)
-            s.merge(obs)
+            merge_parameters(md.attrs, attrs, DatasetMetadataAttr)
+            s.merge(md)
             s.flush()
             s.commit()
             
-            return {"class":"dataset_metadata_entry", "object_id":obs.dataset, "metadata_schema":schema["id"], "id":obs.id}
+            entry = DatasetMetadataEntry(object_id=md.dataset, metadata_schema_id=md.schema, id=md.id)
+            for attr in md.attrs:
+                if isinstance(schema.attrs[attr.name], FileDataType):
+                    entry[attr.name] = FileObject(f_path=attr.value) 
+                else:
+                    entry[attr.name] = attr.value
+            return entry 
         finally:
             s.close()
             
@@ -237,21 +244,28 @@ class RepositoryDB(BaseRepositoryService):
         
         s = orm.sessionmaker(bind=self.engine)()
         try:
-            obs = DataEntryMetadata()
-            obs.data_entry = data_entry.id
-            obs.schema = schema.id
+            md = DataEntryMetadata()
+            md.data_entry = data_entry.id
+            md.schema = schema.id
             
-            s.add(obs)
+            s.add(md)
             s.flush()
             
             # Copy all files into place
-            self.copy_files(attrs, schema.attrs, cwd, obs, "data_entry_metadata")
+            self.copy_files(attrs, schema.attrs, cwd, md, "data_entry_metadata")
             
-            merge_parameters(obs.attrs, attrs, DataEntryMetadataAttr)
-            s.merge(obs)
+            merge_parameters(md.attrs, attrs, DataEntryMetadataAttr)
+            s.merge(md)
             s.flush()
             s.commit()
             
-            return {"class":"data_entry_metadata_entry", "object_id":obs.dataset, "metadata_schema":schema["id"], "id":obs.id}
+            entry = DataEntryMetadataEntry(object_id=md.dataset, metadata_schema_id=md.schema, id=md.id)
+            for attr in md.attrs:
+                if isinstance(schema.attrs[attr.name], FileDataType):
+                    entry[attr.name] = FileObject(f_path=attr.value) 
+                else:
+                    entry[attr.name] = attr.value
+            return entry 
+                    
         finally:
             s.close()

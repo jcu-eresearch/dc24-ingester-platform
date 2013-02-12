@@ -812,7 +812,7 @@ class IngesterServiceDB(IIngesterService):
             objs = session.query(Dataset).all()
             ret_list = []
             for obj in objs:
-                ret_list.append(obj_to_dict(obj))
+                ret_list.append(dao_to_domain(obj))
             return ret_list
         finally:
             session.close()
@@ -855,17 +855,17 @@ class IngesterServiceDB(IIngesterService):
 
     @method("persist", "dataset_metadata_entry")
     def persistDatasetMetadata(self, dataset_metadata, session, cwd):
-        dataset_id = dataset_metadata["object_id"]
+        dataset_id = dataset_metadata.object_id
         dataset = self.getDataset(dataset_id)
-        schema = self.getSchema(dataset_metadata["metadata_schema"])
-        return self.repo.persistDatasetMetadata(dataset, schema, dataset_metadata["data"], cwd)
+        schema = self.getSchema(dataset_metadata.metadata_schema)
+        return self.repo.persistDatasetMetadata(dataset, schema, dataset_metadata.data, cwd)
 
     @method("persist", "data_entry_metadata_entry")
     def persistDataEntryMetadata(self, data_entry_metadata, session, cwd):
-        dataset_id = data_entry_metadata["object_id"]
-        dataset = self.getDataset(dataset_id)
-        schema = self.getSchema(data_entry_metadata["metadata_schema"])
-        return self.repo.persistDatasetMetadata(dataset, schema, data_entry_metadata["data"], cwd)
+        dataset_id = data_entry_metadata.object_id
+        data_entry = self.getDataEntry(dataset_id)
+        schema = self.getSchema(data_entry_metadata.metadata_schema)
+        return self.repo.persistDataEntryMetadata(data_entry, schema, data_entry_metadata.data, cwd)
 
     def search(self, object_type, criteria=None):
         where = []
