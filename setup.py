@@ -12,6 +12,6 @@ setup(name='jcu.dc24.ingesterplatform',
           "console_scripts": ["mgmt_client = dc24_ingester_platform.client:main",
           "run_ingester = dc24_ingester_platform.ingester.data_sources:main"]
       },
-      install_requires = ["pysandbox", "jcudc24ingesterapi"]
+      install_requires = ["pysandbox", "jcu.dc24.ingesterapi"]
 )
 #      package_data={'twisted.plugins': ['twisted/plugins/dc24_ingester_platform.py']},
