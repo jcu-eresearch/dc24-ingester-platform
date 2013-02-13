@@ -261,7 +261,7 @@ class SOSScraperDataSource(DataSource):
                         output.write(etree.tostring(sos_obs,pretty_print=True))
                         timestamp = datetime.datetime.now()
                         new_data_entry = DataEntry(timestamp=timestamp)
-                        new_data_entry[self.field] = FileObject(f_path=obs_path, mime_type=SOSMimeTypes.sensorML_1_0_1 )
+                        new_data_entry[self.field] = FileObject(f_path=obs_path, mime_type=SOSMimeTypes.om_1_0_0 )
                         ret.append(new_data_entry)
                     self.state['observations'].append(observationID)
 
