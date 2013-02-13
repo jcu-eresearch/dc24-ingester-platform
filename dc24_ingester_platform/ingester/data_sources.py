@@ -196,7 +196,7 @@ class DatasetDataSource(DataSource):
         return [data_entry]
 
 class SOSScraperDataSource(DataSource):
-    def fetch(self, cwd):
+    def fetch(self, cwd, service=None):
         sos = SOS(self.url, SOSVersions.v_1_0_0)
         caps = sos.getCapabilities(["ALL"])
 
