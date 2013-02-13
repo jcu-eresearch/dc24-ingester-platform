@@ -196,7 +196,7 @@ class DatasetDataSource(DataSource):
         return [data_entry]
 
 class SOSScraperDataSource(DataSource):
-    def fetch(self, cwd):
+    def fetch(self, cwd, service=None):
         sos = SOS(self.url, SOSVersions.v_1_0_0)
         caps = sos.getCapabilities(["ALL"])
 
@@ -241,7 +241,7 @@ class SOSScraperDataSource(DataSource):
         namespaces = create_namespace_dict()
         obs_range = caps.xpath("/sos:Capabilities/ows:OperationsMetadata/ows:Operation[@name='GetObservationById']"+
                                "/ows:Parameter/ows:AllowedValues/ows:Range", namespaces=namespaces)
-        insert_dir = os.path.join(cwd, "insert")
+        insert_dir = os.path.join(cwd, "observations")
         if not os.path.exists(insert_dir):
             os.makedirs(insert_dir)
 
@@ -261,7 +261,7 @@ class SOSScraperDataSource(DataSource):
                         output.write(etree.tostring(sos_obs,pretty_print=True))
                         timestamp = datetime.datetime.now()
                         new_data_entry = DataEntry(timestamp=timestamp)
-                        new_data_entry[self.field] = FileObject(f_path=obs_path, mime_type=SOSMimeTypes.sensorML_1_0_1 )
+                        new_data_entry[self.field] = FileObject(f_path=obs_path, mime_type=SOSMimeTypes.om_1_0_0 )
                         ret.append(new_data_entry)
                     self.state['observations'].append(observationID)
 
