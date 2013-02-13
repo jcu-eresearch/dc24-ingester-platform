@@ -85,6 +85,10 @@ class RepositoryDAM(BaseRepositoryService):
 
     @method("persist", "schema")
     def persistSchema(self, schema):
+        if hasattr(schema, "repository_id") and schema.repository_id != None:
+            logger.error("Can't update schemas")
+            return schema.repository_id
+        
         attrs = [{"name":attr.name, "identifier":attr.name, "type":attr.kind} for attr in schema.attributes]
         for parent in schema.extends:
             attrs += [{"name":attr.name, "identifier":attr.name, "type":attr.kind} for attr in parent.attributes]
@@ -109,6 +113,8 @@ class RepositoryDAM(BaseRepositoryService):
             "latitude":location.latitude,
             "longitude":location.longitude,
             "zones":[]}
+        if hasattr(location, "repository_id") and location.repository_id != None:
+            dam_location["id"] = location.repository_id
         with self.connection() as repo:
             dam_location = repo.ingest(dam_location)
         self.new_objs.append(dam_location["id"])
@@ -120,6 +126,8 @@ class RepositoryDAM(BaseRepositoryService):
             "location":location.repository_id,
             "zone":"",
             "schema":schema.repository_id}
+        if hasattr(dataset, "repository_id") and dataset.repository_id != None:
+            dam_dataset["id"] = dataset.repository_id
         with self.connection() as repo:
             dam_dataset = repo.ingest(dam_dataset)
         self.new_objs.append(dam_dataset["id"])
@@ -144,6 +152,7 @@ class RepositoryDAM(BaseRepositoryService):
             dam_obs = {"dam_type":"ObservationMetaData",
                 "dataset":dataset.repository_id,
                 "time":dam.format_time(data_entry.timestamp)}
+            
             dam_obs = repo.ingest(dam_obs, lock=True)
             
             self._persist_attributes(dam_obs, data_entry.data, cwd)
