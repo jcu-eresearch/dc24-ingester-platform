@@ -6,12 +6,12 @@ setup(name='jcu.dc24.ingesterplatform',
       author='Nigel Sim',
       author_email='nigel.sim@coastalcoms.com',
       url='http://www.coastalcoms.com',
-      packages=['dc24ingesterplatform'],
+      packages=['dc24_ingester_platform'],
       zip_safe=False,
       entry_points={
           "console_scripts": ["mgmt_client = dc24_ingester_platform.client:main",
           "run_ingester = dc24_ingester_platform.ingester.data_sources:main"]
       },
-      install_requires = ["pysandbox", "jcudc24ingesterapi"]
+      install_requires = ["pysandbox", "jcudc24ingesterapi", "lxml", "requests"]
 )
 #      package_data={'twisted.plugins': ['twisted/plugins/dc24_ingester_platform.py']},
