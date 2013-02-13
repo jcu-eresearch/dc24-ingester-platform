@@ -1,0 +1,8 @@
+{"class": "sos_scraper_data_source",
+    "state": {},
+    "parameters": {},
+    "config": {
+        "url": "http://localhost:8080/52nSOSv3.5.0/sos",
+        "field": "file"
+    }
+}

@@ -6,7 +6,7 @@ requires = [
     "sqlalchemy",
     "ipython",
     "jcu.dc24.ingesterapi",
-    "lxml",
+    "lxml==2.3",
     "requests"
     ]
 

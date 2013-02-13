@@ -7,6 +7,7 @@ class SOSVersions:
 
 class SOSMimeTypes:
     sensorML_1_0_1 = 'text/xml;subtype="sensorML/1.0.1"'
+    om_1_0_0 = 'text/xml;subtype="om/1.0.0"'
 
 def create_namespace_dict(default_prefix=None):
     namespaces = {

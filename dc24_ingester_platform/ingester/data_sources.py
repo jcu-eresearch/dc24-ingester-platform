@@ -196,10 +196,23 @@ class DatasetDataSource(DataSource):
         return [data_entry]
 
 class SOSScraperDataSource(DataSource):
-    def fetch(self, cwd):
+    def fetch(self, cwd, service=None):
         sos = SOS(self.url, SOSVersions.v_1_0_0)
         caps = sos.getCapabilities(["ALL"])
 
+        if self.state is None:
+            self.state={}
+        if 'sensorml' not in self.state:
+            self.state['sensorml'] = []
+        if 'observations' not in self.state:
+            self.state['observations'] = []
+        ret = []
+        self.fetch_sensorml(sos, caps, cwd, ret)
+        self.fetch_observations(sos, caps, cwd, ret)
+
+        return ret
+
+    def fetch_sensorml(self, sos, caps, cwd, ret):
         namespaces = create_namespace_dict()
         allowed = caps.xpath("/sos:Capabilities/ows:OperationsMetadata/ows:Operation[@name='InsertObservation']"+
                              "/ows:Parameter[@name='AssignedSensorId']/ows:AllowedValues", namespaces=namespaces)
@@ -207,22 +220,50 @@ class SOSScraperDataSource(DataSource):
             raise DataSourceError("AssignedSensorId from xpath match, found: %s"%len(allowed))
         sensorIDS = [x.text for x in allowed[0].xpath("ows:Value", namespaces=namespaces)]
 
-        ret = []
+        sensorml_dir = os.path.join(cwd,"sensorml")
+        if not os.path.exists(sensorml_dir):
+            os.makedirs(sensorml_dir)
+
         for sensorID in sensorIDS:
-            sml = sos.describeSensor(sensorID)
-            sensorml_dir = os.path.join(cwd,"sensorml")
-            if not os.path.exists(sensorml_dir):
-                os.makedirs(sensorml_dir)
-            sml_path = os.path.join(sensorml_dir, sensorID)
-            with open(sml_path, "wb") as sensorml:
-                sensorml.write(etree.tostring(sml,pretty_print=True))
-                timestamp = datetime.datetime.now()
-                new_data_entry = DataEntry(timestamp=timestamp)
-                new_data_entry[self.field] = FileObject(f_path=sml_path, mime_type=SOSMimeTypes.sensorML_1_0_1 )
-                ret.append(new_data_entry)
+            if sensorID not in self.state['sensorml']:
+                sml = sos.describeSensor(sensorID)
+                sml_path = os.path.join(sensorml_dir, sensorID)
+                with open(sml_path, "wb") as sensorml:
+                    sensorml.write(etree.tostring(sml,pretty_print=True))
+                    timestamp = datetime.datetime.now()
+                    new_data_entry = DataEntry(timestamp=timestamp)
+                    new_data_entry[self.field] = FileObject(f_path=sml_path, mime_type=SOSMimeTypes.sensorML_1_0_1 )
+                    ret.append(new_data_entry)
+                self.state['sensorml'].append(sensorID)
 
 
-        return ret
+    def fetch_observations(self, sos, caps, cwd, ret):
+        namespaces = create_namespace_dict()
+        obs_range = caps.xpath("/sos:Capabilities/ows:OperationsMetadata/ows:Operation[@name='GetObservationById']"+
+                               "/ows:Parameter/ows:AllowedValues/ows:Range", namespaces=namespaces)
+        insert_dir = os.path.join(cwd, "observations")
+        if not os.path.exists(insert_dir):
+            os.makedirs(insert_dir)
+
+        for _range in obs_range:
+            min = _range.xpath("ows:MinimumValue", namespaces=namespaces)
+            max = _range.xpath("ows:MaximumValue", namespaces=namespaces)
+            if len(min) != 1:
+                raise DataSourceError("Only 1 ows:MinimumValue expected, %s found."%len(min))
+            if len(max) != 1:
+                raise DataSourceError("Only 1 ows:MaximumValue expected, %s found."%len(max))
+            for i in range(int(min[0].text), int(max[0].text) + 1):
+                observationID = "o_%s"%i
+                if observationID not in self.state['observations']:
+                    sos_obs = sos.getObservationByID(observationID, "om:Observation")
+                    obs_path = os.path.join(insert_dir, "%s.xml"%i)
+                    with open(obs_path, "wb") as output:
+                        output.write(etree.tostring(sos_obs,pretty_print=True))
+                        timestamp = datetime.datetime.now()
+                        new_data_entry = DataEntry(timestamp=timestamp)
+                        new_data_entry[self.field] = FileObject(f_path=obs_path, mime_type=SOSMimeTypes.om_1_0_0 )
+                        ret.append(new_data_entry)
+                    self.state['observations'].append(observationID)
 
 
 
