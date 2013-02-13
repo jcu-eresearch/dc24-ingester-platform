@@ -78,8 +78,10 @@ class RepositoryDAM(BaseRepositoryService):
     
     def reset(self):
         logger.info("Deleting items from the DAM")
+        self.new_objs.reverse()
         with self.connection() as repo:
             repo.delete(self.new_objs)
+        self.new_objs = []
 
     @method("persist", "schema")
     def persistSchema(self, schema):
@@ -92,8 +94,8 @@ class RepositoryDAM(BaseRepositoryService):
                 attr["type"] = "numerical"
         dam_schema = {"dam_type":"SchemaMetaData",
                 "type":"DatasetMetaData",
-                "name":str(time.time()),
-                "identifier":str(int(time.time())),
+                "name":"tdh_%d"%schema.id,
+                "identifier":"tdh_%d"%schema.id,
                 "attributes":attrs}
         with self.connection() as repo:
             dam_schema = repo.ingest(dam_schema)
