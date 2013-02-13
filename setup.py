@@ -7,7 +7,8 @@ requires = [
     "ipython",
     "jcu.dc24.ingesterapi",
     "lxml==3.1.0",
-    "requests"
+    "requests",
+    "pysqlite",
     ]
 
 setup(name='jcu.dc24.ingesterplatform',
