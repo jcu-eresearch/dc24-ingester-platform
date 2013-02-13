@@ -9,3 +9,6 @@ lib
 include
 parts
 local
+dam.py
+/jcu.dc24.ingesterplatform.iml
+*.db
