@@ -593,12 +593,16 @@ class IngesterServiceDB(IIngesterService):
         # Set the schema type
         schema_.for_ = for_
 
+        # Persist now to get an ID
+        ret = self._persist(schema_, s)
+        
         # If the repo has a method to persist the dataset then call it and record the output
         fn = find_method(self.repo, "persist", "schema")
         if fn != None:
             schema_.repository_id = fn(schema_)
-
-        return self._persist(schema_, s)
+            return self._persist(schema_, s)
+        else:
+            return ret
         
     def _persist(self, obj, session):
         """Persists the object using the provided session. Will rollback
