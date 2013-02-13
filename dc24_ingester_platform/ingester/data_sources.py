@@ -241,7 +241,7 @@ class SOSScraperDataSource(DataSource):
         namespaces = create_namespace_dict()
         obs_range = caps.xpath("/sos:Capabilities/ows:OperationsMetadata/ows:Operation[@name='GetObservationById']"+
                                "/ows:Parameter/ows:AllowedValues/ows:Range", namespaces=namespaces)
-        insert_dir = os.path.join(cwd, "insert")
+        insert_dir = os.path.join(cwd, "observations")
         if not os.path.exists(insert_dir):
             os.makedirs(insert_dir)
 
