@@ -6,6 +6,8 @@ requires = [
     "sqlalchemy",
     "ipython",
     "jcu.dc24.ingesterapi",
+    "lxml",
+    "requests"
     ]
 
 setup(name='jcu.dc24.ingesterplatform',
