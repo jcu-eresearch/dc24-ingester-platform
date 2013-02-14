@@ -98,7 +98,7 @@ class RepositoryDAM(BaseRepositoryService):
                 attr["type"] = "numerical"
         dam_schema = {"dam_type":"SchemaMetaData",
                 "type":"DatasetMetaData",
-                "name":"tdh_%d"%schema.id,
+                "name":schema.name,
                 "identifier":"tdh_%d"%schema.id,
                 "attributes":attrs}
         with self.connection() as repo:
