@@ -198,7 +198,7 @@ class DatasetDataSource(DataSource):
 
 class SOSScraperDataSource(DataSource):
     def fetch(self, cwd, service=None):
-        sos = SOSClient_V1(self.url, self.varient)
+        sos = SOSClient_V1(self.url, self.variant)
         caps = sos.getCapabilities(["ALL"])
 
         if self.state is None:
@@ -249,28 +249,20 @@ class SOSScraperDataSource(DataSource):
         if not os.path.exists(insert_dir):
             os.makedirs(insert_dir)
 
-#        for _range in obs_range:
-#            min = _range.xpath("ows:MinimumValue", namespaces=namespaces)
-#            max = _range.xpath("ows:MaximumValue", namespaces=namespaces)
-#            if len(min) != 1:
-#                raise DataSourceError("Only 1 ows:MinimumValue expected, %s found."%len(min))
-#            if len(max) != 1:
-#                raise DataSourceError("Only 1 ows:MaximumValue expected, %s found."%len(max))
-#            for i in range(int(min[0].text), int(max[0].text) + 1):
-        for observationID in self.varient.createRangeGenerator(obs_range, namespaces):
-                if observationID not in self.state['observations']:
-                    logger.debug("GetObservationByID for %s"%observationID)
-                    sos_obs = sos.getObservationByID(observationID, "om:Observation")
-                    obs_path = os.path.join(insert_dir, "%s.xml"%observationID)
-                    with open(obs_path, "wb") as output:
-                        output.write(etree.tostring(sos_obs,pretty_print=True))
-                        timestamp = datetime.datetime.now()
-                        new_data_entry = DataEntry(timestamp=timestamp)
-                        new_data_entry[self.field] = FileObject(f_path=obs_path, mime_type=SOSMimeTypes.om_1_0_0 )
-                        ret.append(new_data_entry)
-                    self.state['observations'].append(observationID)
-                else:
-                    logger.debug("GetObservationByID for %s already retrieved, ignoring."%observationID)
+        for observationID in self.variant.createRangeGenerator(obs_range, namespaces):
+            if observationID not in self.state['observations']:
+                logger.debug("GetObservationByID for %s"%observationID)
+                sos_obs = sos.getObservationByID(observationID, "om:Observation")
+                obs_path = os.path.join(insert_dir, "%s.xml"%observationID)
+                with open(obs_path, "wb") as output:
+                    output.write(etree.tostring(sos_obs,pretty_print=True))
+                    timestamp = datetime.datetime.now()
+                    new_data_entry = DataEntry(timestamp=timestamp)
+                    new_data_entry[self.field] = FileObject(f_path=obs_path, mime_type=SOSMimeTypes.om_1_0_0 )
+                    ret.append(new_data_entry)
+                self.state['observations'].append(observationID)
+            else:
+                logger.debug("GetObservationByID for %s already retrieved, ignoring."%observationID)
 
 
 
