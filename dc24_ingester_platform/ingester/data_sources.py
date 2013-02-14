@@ -14,7 +14,7 @@ import urlparse
 import sys
 import json
 import pprint
-from dc24_ingester_platform.ingester.sos import SOS, SOSVersions, create_namespace_dict, SOSMimeTypes
+
 from lxml import etree
 
 from dc24_ingester_platform.utils import *
@@ -23,6 +23,7 @@ from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
 from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
 from jcudc24ingesterapi.models.data_sources import _DataSource
 from dc24_ingester_platform.ingester.processor import run_script
+from simplesos.client import SOSClient_V1, create_namespace_dict, SOSMimeTypes
 
 logger = logging.getLogger("dc24_ingester_platform.ingester.data_sources")
 
@@ -197,7 +198,7 @@ class DatasetDataSource(DataSource):
 
 class SOSScraperDataSource(DataSource):
     def fetch(self, cwd, service=None):
-        sos = SOS(self.url, SOSVersions.v_1_0_0)
+        sos = SOSClient_V1(self.url, self.varient)
         caps = sos.getCapabilities(["ALL"])
 
         if self.state is None:
@@ -226,6 +227,7 @@ class SOSScraperDataSource(DataSource):
 
         for sensorID in sensorIDS:
             if sensorID not in self.state['sensorml']:
+                logger.debug("Getting SensorML for %s"%sensorID)
                 sml = sos.describeSensor(sensorID)
                 sml_path = os.path.join(sensorml_dir, sensorID)
                 with open(sml_path, "wb") as sensorml:
@@ -235,6 +237,8 @@ class SOSScraperDataSource(DataSource):
                     new_data_entry[self.field] = FileObject(f_path=sml_path, mime_type=SOSMimeTypes.sensorML_1_0_1 )
                     ret.append(new_data_entry)
                 self.state['sensorml'].append(sensorID)
+            else:
+                logger.debug("SensorML for %s already exists, ignoring."%sensorID)
 
 
     def fetch_observations(self, sos, caps, cwd, ret):
@@ -245,18 +249,19 @@ class SOSScraperDataSource(DataSource):
         if not os.path.exists(insert_dir):
             os.makedirs(insert_dir)
 
-        for _range in obs_range:
-            min = _range.xpath("ows:MinimumValue", namespaces=namespaces)
-            max = _range.xpath("ows:MaximumValue", namespaces=namespaces)
-            if len(min) != 1:
-                raise DataSourceError("Only 1 ows:MinimumValue expected, %s found."%len(min))
-            if len(max) != 1:
-                raise DataSourceError("Only 1 ows:MaximumValue expected, %s found."%len(max))
-            for i in range(int(min[0].text), int(max[0].text) + 1):
-                observationID = "o_%s"%i
+#        for _range in obs_range:
+#            min = _range.xpath("ows:MinimumValue", namespaces=namespaces)
+#            max = _range.xpath("ows:MaximumValue", namespaces=namespaces)
+#            if len(min) != 1:
+#                raise DataSourceError("Only 1 ows:MinimumValue expected, %s found."%len(min))
+#            if len(max) != 1:
+#                raise DataSourceError("Only 1 ows:MaximumValue expected, %s found."%len(max))
+#            for i in range(int(min[0].text), int(max[0].text) + 1):
+        for observationID in self.varient.createRangeGenerator(obs_range, namespaces):
                 if observationID not in self.state['observations']:
+                    logger.debug("GetObservationByID for %s"%observationID)
                     sos_obs = sos.getObservationByID(observationID, "om:Observation")
-                    obs_path = os.path.join(insert_dir, "%s.xml"%i)
+                    obs_path = os.path.join(insert_dir, "%s.xml"%observationID)
                     with open(obs_path, "wb") as output:
                         output.write(etree.tostring(sos_obs,pretty_print=True))
                         timestamp = datetime.datetime.now()
@@ -264,6 +269,8 @@ class SOSScraperDataSource(DataSource):
                         new_data_entry[self.field] = FileObject(f_path=obs_path, mime_type=SOSMimeTypes.om_1_0_0 )
                         ret.append(new_data_entry)
                     self.state['observations'].append(observationID)
+                else:
+                    logger.debug("GetObservationByID for %s already retrieved, ignoring."%observationID)
 
 
 
@@ -291,6 +298,14 @@ def create_data_source(data_source_config, state, parameters):
     return data_sources[data_source_config.__xmlrpc_class__](state, parameters, data_source_config)
 
 def main():
+    ch = logging.StreamHandler(stream=sys.stdout)
+    ch.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.root.addHandler(ch)
+    logger.root.setLevel(logging.DEBUG)
+
     args = sys.argv
     if len(args) not in (3,4):
         print "Usage: %s <config file> <working directory>"%(args[0])
@@ -329,7 +344,7 @@ def main():
         setattr(data_source_do, k, cfg["config"][k])
 
     data_source = create_data_source(data_source_do, cfg["state"], cfg["parameters"])
-    
+
     results = data_source.fetch(cwd)
     print "Initial results"
     print "---------------"
@@ -345,6 +360,8 @@ def main():
         print "-----------------"
         for result in results:
             print str(result)
+
+    with open(cfg_file, "wb") as _cfg: json.dump(cfg, _cfg)
     return 0
 
 if __name__ == "__main__":
