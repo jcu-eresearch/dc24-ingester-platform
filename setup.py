@@ -9,6 +9,7 @@ requires = [
     "lxml==3.1.0",
     "requests",
     "pysqlite",
+    "simplesos"
     ]
 
 setup(name='jcu.dc24.ingesterplatform',
