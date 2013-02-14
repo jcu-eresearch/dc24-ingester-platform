@@ -24,6 +24,7 @@ from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
 from jcudc24ingesterapi.models.data_sources import _DataSource
 from dc24_ingester_platform.ingester.processor import run_script
 from simplesos.client import SOSClient_V1, create_namespace_dict, SOSMimeTypes
+from simplesos.varients import getSOSVariant
 
 logger = logging.getLogger("dc24_ingester_platform.ingester.data_sources")
 
@@ -197,6 +198,11 @@ class DatasetDataSource(DataSource):
         return [data_entry]
 
 class SOSScraperDataSource(DataSource):
+
+    def __init__(self, state, parameters, config):
+        super(SOSScraperDataSource, self).__init__(state, parameters, config)
+        self.variant_impl = getSOSVariant(self.variant)()
+
     def fetch(self, cwd, service=None):
         sos = SOSClient_V1(self.url, self.variant)
         caps = sos.getCapabilities(["ALL"])
@@ -249,7 +255,7 @@ class SOSScraperDataSource(DataSource):
         if not os.path.exists(insert_dir):
             os.makedirs(insert_dir)
 
-        for observationID in self.variant.createRangeGenerator(obs_range, namespaces):
+        for observationID in self.variant_impl.createRangeGenerator(obs_range, namespaces):
             if observationID not in self.state['observations']:
                 logger.debug("GetObservationByID for %s"%observationID)
                 sos_obs = sos.getObservationByID(observationID, "om:Observation")

@@ -3,6 +3,7 @@
     "parameters": {},
     "config": {
         "url": "http://localhost:8080/52nSOSv3.5.0/sos",
-        "field": "file"
+        "field": "file",
+        "variant": "52North"
     }
 }
