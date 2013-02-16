@@ -24,6 +24,7 @@ import jcudc24ingesterapi.schemas.data_types
 from jcudc24ingesterapi.models.locations import LocationOffset
 from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
 import datetime
+from jcudc24ingesterapi.models.data_sources import DatasetDataSource
 
 logger = logging.getLogger(__name__)
 
@@ -275,6 +276,7 @@ def parameters_to_dict(params, name_attr="name", value_attr="value"):
         
 def ingest_order(x, y):
     """Sort objects by class according to the order which will make an insert transaction work.
+    FIXME this needs to properly order ingest such that dataset data sources are correctly ingested last.
     """
     order = ["_schema", "region", "location", "dataset"]
     x_i = len(order)
@@ -351,6 +353,33 @@ def dao_to_domain(dao):
         raise PersistenceError("Could not convert DAO object to domain: %s"%(str(type(dao))))
     return domain
 
+def sort_datasets(datasets):
+    """This method reorders the list so that datasets that have dataset data sources are ingested after there
+    dependent data source.
+    """
+    ingested = []
+    output = []
+    remaining = []
+    while len(datasets) > 0:
+        for dataset in datasets:
+            if dataset.__xmlrpc_class__ != "dataset":
+                output.append(dataset)
+                continue
+            if dataset.data_source == None or \
+                    dataset.data_source.__xmlrpc_class__ != "dataset_data_source" or \
+                    dataset.data_source.dataset_id == None or \
+                    dataset.data_source.dataset_id > 0 or \
+                    dataset.data_source.dataset_id in ingested:
+                ingested.append(dataset.id)
+                output.append(dataset)
+            else:
+                remaining.append(dataset)
+        if len(remaining) > 0 and len(remaining) == len(datasets):
+            raise Exception("Can not resolve ingestion order")
+        datasets = remaining
+            
+    return output
+
 class IngesterServiceDB(IIngesterService):
     """This service provides DAO operations for the ingester service.
     
@@ -392,6 +421,8 @@ class IngesterServiceDB(IIngesterService):
         try:
             unit._to_insert.sort(ingest_order)
             unit._to_update.sort(ingest_order)
+            
+            unit._to_insert = sort_datasets(unit._to_insert)
             # delete first
             # now sort to find objects by order of dependency (location then dataset)
             for unit_list in (unit._to_insert, unit._to_update):
@@ -402,6 +433,8 @@ class IngesterServiceDB(IIngesterService):
                     if cls == "dataset":
                         if obj.location < 0: obj.location = locs[obj.location]
                         if obj.schema < 0: obj.schema = schemas[obj.schema]
+                        if obj.data_source != None and isinstance(obj.data_source, DatasetDataSource) and obj.data_source.dataset_id < 0:
+                            obj.data_source.dataset_id = datasets[obj.data_source.dataset_id]
                         
                     elif cls.endswith("schema"):
                         obj.extends = [ schemas[p_id] if p_id<0 else p_id for p_id in obj.extends]
@@ -414,6 +447,8 @@ class IngesterServiceDB(IIngesterService):
                         locs[oid] = obj.id
                     elif cls.endswith("schema"):
                         schemas[oid] = obj.id
+                    elif cls == "dataset":
+                        datasets[oid] = obj.id
                             
                     obj.correlationid = oid
                     ret.append(obj)
@@ -423,6 +458,9 @@ class IngesterServiceDB(IIngesterService):
                 self.disableDataset(obj_id)
             s.commit()
             return ret
+        except Exception as e:
+            s.rollback()
+            raise e
         finally:
             s.close()
 

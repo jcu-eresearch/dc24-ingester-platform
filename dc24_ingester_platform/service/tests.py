@@ -11,7 +11,8 @@ from jcudc24ingesterapi.schemas.data_entry_schemas import DataEntrySchema
 from jcudc24ingesterapi.schemas.metadata_schemas import DatasetMetadataSchema, DataEntryMetadataSchema
 from jcudc24ingesterapi.schemas.data_types import FileDataType, String, Double
 from jcudc24ingesterapi.ingester_platform_api import UnitOfWork
-from jcudc24ingesterapi.models.data_sources import PullDataSource
+from jcudc24ingesterapi.models.data_sources import PullDataSource,\
+    DatasetDataSource
 from jcudc24ingesterapi.models.sampling import PeriodicSampling
 from jcudc24ingesterapi.models.data_entry import DataEntry
 
@@ -199,5 +200,40 @@ class TestServiceModels(unittest.TestCase):
         self.assertEquals(1, len(data_source_state))
         self.assertEquals("xyz", data_source_state["test2"])
                 
+                
+    def test_dataset_data_source_unit(self):
+        """This test creates a simple schema hierarchy, and tests updates, etc"""
+        unit = UnitOfWork(None)
+        
+        schema1 = DataEntrySchema("base1")
+        schema1.addAttr(FileDataType("file"))
+        schema_id = unit.post(schema1)
+        
+        loc = Location(10.0, 11.0)
+        loc.name = "Location"
+        loc_id = unit.post(loc)
+        
+        dataset1 = Dataset()
+        dataset1.schema = schema_id   
+        dataset1.location = loc_id
+        dataset1_id = unit.post(dataset1)
+        
+        dataset2 = Dataset()
+        dataset2.schema = schema_id   
+        dataset2.location = loc_id
+        dataset2.data_source = DatasetDataSource(dataset1_id, "")
+        dataset2_id = unit.post(dataset2)
+        
+        ret = self.service.commit(unit, None)
+        
+        found = False
+        for r in ret:
+            if isinstance(r, Dataset) and dataset1_id == r.correlationid:
+                dataset1_id = r.id
+            elif isinstance(r, Dataset) and dataset2_id == r.correlationid:
+                self.assertEquals(dataset1_id, r.data_source.dataset_id, "Data source dataset_id was not updated")
+                found = True
+        
+        self.assertTrue(found, "Didn't find the dataset with the dataset data source")
 if __name__ == '__main__':
     unittest.main()
