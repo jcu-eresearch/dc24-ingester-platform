@@ -105,6 +105,16 @@ class ManagementService(xmlrpc.XMLRPC):
         except Exception, e:
             raise xmlrpc.Fault(1, str(e))
 
+    def xmlrpc_getRegion(self, reg_id):
+        """Retrieve a location by id
+        """
+        try:
+            return self._marshaller.obj_to_dict(self.service.getRegion(reg_id))
+        except ValueError, e:
+            raise xmlrpc.Fault(1, str(e))
+        except PersistenceError, e:
+            raise xmlrpc.Fault(1, str(e))
+
     def xmlrpc_getLocation(self, loc_id):
         """Retrieve a location by id
         """
@@ -115,11 +125,31 @@ class ManagementService(xmlrpc.XMLRPC):
         except PersistenceError, e:
             raise xmlrpc.Fault(1, str(e)) 
 
+    def xmlrpc_getSchema(self, s_id):
+        """Retrieve a schema by id
+        """
+        try:
+            return self._marshaller.obj_to_dict(self.service.getSchema(s_id))
+        except ValueError, e:
+            raise xmlrpc.Fault(1, str(e))
+        except PersistenceError, e:
+            raise xmlrpc.Fault(1, str(e)) 
+        
     def xmlrpc_getDataset(self, ds_id):
         """Retrieve a dataset by id
         """
         try:
             return self._marshaller.obj_to_dict(self.service.getDataset(ds_id))
+        except ValueError, e:
+            raise xmlrpc.Fault(1, str(e))
+        except PersistenceError, e:
+            raise xmlrpc.Fault(1, str(e)) 
+        
+    def xmlrpc_getDataEntry(self, ds_id, de_id):
+        """Retrieve a data entry by dataset id + data entry id
+        """
+        try:
+            return self._marshaller.obj_to_dict(self.service.getDataEntry(ds_id, de_id))
         except ValueError, e:
             raise xmlrpc.Fault(1, str(e))
         except PersistenceError, e:
