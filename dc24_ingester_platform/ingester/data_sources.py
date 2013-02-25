@@ -16,7 +16,6 @@ import sys
 import json
 import pprint
 
-from lxml import etree
 
 from dc24_ingester_platform.utils import *
 from dc24_ingester_platform import IngesterError
@@ -235,7 +234,7 @@ class SOSScraperDataSource(DataSource):
                 sml = sos.describeSensor(sensorID)
                 sml_path = os.path.join(sensorml_dir, sensorID)
                 with open(sml_path, "wb") as sensorml:
-                    sensorml.write(etree.tostring(sml,pretty_print=True))
+                    sensorml.write(sml.getXMLString())
                     timestamp = datetime.datetime.now()
                     new_data_entry = DataEntry(timestamp=timestamp)
                     new_data_entry[self.field] = FileObject(f_path=sml_path, mime_type=SOSMimeTypes.sensorML_1_0_1 )
