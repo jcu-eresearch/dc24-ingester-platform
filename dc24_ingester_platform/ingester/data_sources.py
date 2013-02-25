@@ -3,6 +3,7 @@ Created on Nov 1, 2012
 
 @author: nigel
 """
+from collections import defaultdict
 import os
 import re
 import datetime
@@ -23,7 +24,8 @@ from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
 from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
 from jcudc24ingesterapi.models.data_sources import _DataSource
 from dc24_ingester_platform.ingester.processor import run_script
-from simplesos.client import SOSClient_V1, create_namespace_dict, SOSMimeTypes
+from simplesos.client import SOSClient_V1
+from simplesos.util import SOSMimeTypes
 from simplesos.varients import getSOSVariant
 
 logger = logging.getLogger("dc24_ingester_platform.ingester.data_sources")
@@ -204,7 +206,7 @@ class SOSScraperDataSource(DataSource):
         self.variant_impl = getSOSVariant(self.variant)()
 
     def fetch(self, cwd, service=None):
-        sos = SOSClient_V1(self.url, self.variant)
+        sos = SOSClient_V1(self.url, self.variant_impl)
         caps = sos.getCapabilities(["ALL"])
 
         if self.state is None:
@@ -213,6 +215,8 @@ class SOSScraperDataSource(DataSource):
             self.state['sensorml'] = []
         if 'observations' not in self.state:
             self.state['observations'] = []
+        if 'observation_map' not in self.state:
+            self.state['observation_map'] = defaultdict(list)
         ret = []
         self.fetch_sensorml(sos, caps, cwd, ret)
         self.fetch_observations(sos, caps, cwd, ret)
@@ -220,13 +224,7 @@ class SOSScraperDataSource(DataSource):
         return ret
 
     def fetch_sensorml(self, sos, caps, cwd, ret):
-        namespaces = create_namespace_dict()
-        allowed = caps.xpath("/sos:Capabilities/ows:OperationsMetadata/ows:Operation[@name='InsertObservation']"+
-                             "/ows:Parameter[@name='AssignedSensorId']/ows:AllowedValues", namespaces=namespaces)
-        if len(allowed) != 1:
-            raise DataSourceError("AssignedSensorId from xpath match, found: %s"%len(allowed))
-        sensorIDS = [x.text for x in allowed[0].xpath("ows:Value", namespaces=namespaces)]
-
+        sensorIDS = caps.getSensorIDs()
         sensorml_dir = os.path.join(cwd,"sensorml")
         if not os.path.exists(sensorml_dir):
             os.makedirs(sensorml_dir)
@@ -248,25 +246,23 @@ class SOSScraperDataSource(DataSource):
 
 
     def fetch_observations(self, sos, caps, cwd, ret):
-        namespaces = create_namespace_dict()
-        obs_range = caps.xpath("/sos:Capabilities/ows:OperationsMetadata/ows:Operation[@name='GetObservationById']"+
-                               "/ows:Parameter/ows:AllowedValues/ows:Range", namespaces=namespaces)
         insert_dir = os.path.join(cwd, "observations")
         if not os.path.exists(insert_dir):
             os.makedirs(insert_dir)
 
-        for observationID in self.variant_impl.createRangeGenerator(obs_range, namespaces):
+        for observationID in caps.createRangeGenerator():
             if observationID not in self.state['observations']:
                 logger.debug("GetObservationByID for %s"%observationID)
                 sos_obs = sos.getObservationByID(observationID, "om:Observation")
                 obs_path = os.path.join(insert_dir, "%s.xml"%observationID)
                 with open(obs_path, "wb") as output:
-                    output.write(etree.tostring(sos_obs,pretty_print=True))
-                    timestamp = datetime.datetime.now()
+                    output.write(sos_obs.getXMLString())
+                    timestamp = sos_obs.getTimestamp()
                     new_data_entry = DataEntry(timestamp=timestamp)
                     new_data_entry[self.field] = FileObject(f_path=obs_path, mime_type=SOSMimeTypes.om_1_0_0 )
                     ret.append(new_data_entry)
                 self.state['observations'].append(observationID)
+                self.state['observation_map'][sos_obs.getSensorID()].append(observationID)
             else:
                 logger.debug("GetObservationByID for %s already retrieved, ignoring."%observationID)
 
