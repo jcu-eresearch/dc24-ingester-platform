@@ -60,6 +60,7 @@ class PullDataSource(DataSource):
     """
     field = None # The field to ingest into
     recursive = False
+    pattern = None # Regex to filter file names
     def fetch(self, cwd, service=None):
         """Fetch from a URI using urllib2
         
@@ -95,7 +96,10 @@ class PullDataSource(DataSource):
             urls = RE_A.findall(index_page)
             found = 0
             
+            RE_FILENAME = None if self.pattern == None else re.compile(self.pattern)
             for url_part in urls:
+                if RE_FILENAME != None and RE_FILENAME.match(url_part[1]) == None: continue
+
                 url = urlparse.urljoin(self.url, url_part[0]+url_part[1])
                 req = urllib2.Request(url)
                 if since != None: req.add_header("If-Modified-Since", since)
