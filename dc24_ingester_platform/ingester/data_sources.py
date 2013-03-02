@@ -106,7 +106,12 @@ class PullDataSource(DataSource):
                     with file(f_out_name, "wb") as f_out:
                         shutil.copyfileobj(f_in, f_out)
                     new_data_entry = DataEntry(timestamp=timestamp)
-                    new_data_entry[self.field] = FileObject(f_path="outputfile%d"%found, mime_type="" )
+                    file_name = None
+                    try:
+                        file_name = url_part[1].split("/")[-1]
+                    except:
+                        pass
+                    new_data_entry[self.field] = FileObject(f_path="outputfile%d"%found, mime_type="", file_name=file_name)
                     ret.append(new_data_entry)
                     found += 1
                     
@@ -138,7 +143,14 @@ class PullDataSource(DataSource):
         finally:
             if f_in != None: f_in.close()
         new_data_entry = DataEntry(timestamp=timestamp)
-        new_data_entry[self.field] = FileObject(f_path="outputfile", mime_type="" )
+        
+        file_name = None
+        try:
+            file_name = self.url.split("/")[-1]
+        except:
+            pass
+
+        new_data_entry[self.field] = FileObject(f_path="outputfile", mime_type="", file_name=file_name)
             
         return [new_data_entry]
 

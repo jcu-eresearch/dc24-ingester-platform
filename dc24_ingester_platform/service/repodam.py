@@ -138,6 +138,7 @@ class RepositoryDAM(BaseRepositoryService):
             for attr_name in attributes: 
                 attr = {"name":attr_name} # DAM Attribute
                 if isinstance(attributes[attr_name], FileObject):
+                    attr["originalFileName"] = attributes[attr_name].file_name
                     with open(os.path.join(cwd, attributes[attr_name].f_path), "rb") as f:
                         repo.ingest_attribute(obs["id"], attr, f)
                 else:
@@ -176,6 +177,7 @@ class RepositoryDAM(BaseRepositoryService):
                 fo = FileObject()
                 fo.f_name = attr["name"]
                 fo.mime_type = attr["mimeType"]
+                fo.file_name = attr["originalFileName"]
                 data_entry.data[attr["name"]] = fo
             else:
                 data_entry.data[attr["name"]] = attr["value"]
