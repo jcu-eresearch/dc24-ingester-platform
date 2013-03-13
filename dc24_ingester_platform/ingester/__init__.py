@@ -14,6 +14,8 @@ import datetime
 import tempfile
 import time
 import shutil
+import Queue
+
 from processor import *
 from dc24_ingester_platform.utils import *
 from twisted.internet.task import LoopingCall
@@ -31,9 +33,14 @@ class IngesterEngine(object):
         self.service.register_observation_listener(self)
         self.staging_dir = staging_dir
         if not os.path.exists(self.staging_dir): os.makedirs(self.staging_dir)
-        self._queue = []
-        self._ingest_queue = []
+        self._queue = Queue.Queue()
+        self._ingest_queue = Queue.Queue()
         self._data_source_factory = data_source_factory
+        self.running = True
+        
+    def shutdown(self):
+        """Signal that we want to shutdown to our threads"""
+        self.running = False
         
     def processSamplers(self):
         """Process all the active dataset samplers to determine which are
@@ -47,7 +54,7 @@ class IngesterEngine(object):
             if not hasattr(dataset.data_source, "sampling") or dataset.data_source.sampling == None: continue
             self.processSampler(now, dataset)
 
-        self.processQueue()
+        #self.processQueue()
 
     def processSampler(self, now, dataset):
         """To process a dataset:
@@ -70,9 +77,12 @@ class IngesterEngine(object):
   
     def processQueue(self):
         """Process the pending fetch and process queue"""
-        while len(self._queue) > 0:
-            dataset, parameters = self._queue[0]
-            del self._queue[0]
+        while self.running:
+            try:
+                dataset, parameters = self._queue.get(True, 5)
+            except Queue.Empty:
+                # just loop, checking the running flag
+                continue
             
             state = self.service.getDataSourceState(dataset.id)
             try:
@@ -100,22 +110,24 @@ class IngesterEngine(object):
         """Process one entry in the ingest queue. 
         Each element in the queue may be many data entries, from the same data source.
         """
-        if len(self._ingest_queue) == 0: return
-        entries, cwd = self._ingest_queue[0]
-        del self._ingest_queue[0]
-
-        for entry in entries:
-            self.service.persist(entry, cwd)
-        # Cleanup
-        shutil.rmtree(cwd)
+        while self.running:
+            try:
+                entries, cwd = self._ingest_queue.get(True, 5)
+            except Queue.Empty:
+                continue
+    
+            for entry in entries:
+                self.service.persist(entry, cwd)
+            # Cleanup
+            shutil.rmtree(cwd)
   
     def queue(self, dataset, parameters=None):
         """Enqueue the dataset for fetch and process ASAP"""
-        self._queue.append( (dataset, parameters) )
+        self._queue.put( (dataset, parameters) )
 
     def queueIngest(self, ingest_data, cwd):
         """Queue a data entry for ingest into the repository"""
-        self._ingest_queue.append((ingest_data, cwd))
+        self._ingest_queue.put((ingest_data, cwd))
         
     def notifyNewObservation(self, obs, cwd):
         """Notification of new data. On return it is expected that the cwd will be
@@ -138,7 +150,12 @@ def startIngester(service, staging_dir, data_source_factory=create_data_source):
     lc = LoopingCall(ingester.processSamplers)
     lc.start(15, False)
     
-    lc = LoopingCall(ingester.processIngestQueue)
-    lc.start(15, False)
+#    lc = LoopingCall(ingester.processIngestQueue)
+#    lc.start(15, False)
     
+    from twisted.internet import reactor
+    reactor.callInThread(ingester.processQueue)
+    reactor.callInThread(ingester.processIngestQueue)
+    reactor.addSystemEventTrigger("before", "shutdown", lambda : ingester.shutdown())
+
     return ingester

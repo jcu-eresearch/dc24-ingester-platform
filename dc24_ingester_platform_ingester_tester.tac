@@ -24,7 +24,7 @@ service_facade = mock.makeMockService()
 # attach the service to its parent application
 application = service.Application("DC24 Mock Ingester Platform")
 root = Resource()
-root.putChild("api", mock.makeMockServer())
+root.putChild("api", mock.makeMockServer(service_facade))
 service = internet.TCPServer(8080, server.Site(root))
 service.setServiceParent(application)
 

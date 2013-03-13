@@ -24,7 +24,7 @@ class ManagementService(xmlrpc.XMLRPC):
     """
     def __init__(self, staging_dir, service):
         """Initialise the management service. 
-        :param service: Service Facade instance being exposed by this XMLRPX service
+        :param service: Service Facade instance being exposed by this XMLRPC service
         """
         xmlrpc.XMLRPC.__init__(self, allowNone=True)
         self.service = service
