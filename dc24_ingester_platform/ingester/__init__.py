@@ -24,7 +24,7 @@ import traceback
 logger = logging.getLogger("dc24_ingester_platform")
 
 class IngesterEngine(object):
-    def __init__(self, service, staging_dir, data_source_factory=create_data_source):
+    def __init__(self, service, staging_dir, data_source_factory):
         """Create an ingester engine, and register itself with the service facade.
         """
         self.service = service
@@ -128,13 +128,13 @@ class IngesterEngine(object):
             self.queue(dataset, {"dataset":obs.dataset, "id":obs.id})
         
 
-def startIngester(service, staging_dir):
+def startIngester(service, staging_dir, data_source_factory=create_data_source):
     """Setup and start the ingester loop.
     
     :param service: the service facade
     :param staging_dir: the folder that will hold all the staging data
     """
-    ingester = IngesterEngine(service, staging_dir)
+    ingester = IngesterEngine(service, staging_dir, data_source_factory)
     lc = LoopingCall(ingester.processSamplers)
     lc.start(15, False)
     
