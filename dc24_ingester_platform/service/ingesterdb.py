@@ -110,6 +110,7 @@ class Dataset(Base):
     data_source = orm.relationship("DataSource", uselist=False)
     schema = Column(Integer, ForeignKey('SCHEMA.id'))
     enabled = Column(Boolean, default=True)
+    running = Column(Boolean, default=False)
     description = Column(String)
     redbox_uri = Column(String)
     repository_id = Column(String)
@@ -695,6 +696,28 @@ class IngesterServiceDB(IIngesterService):
         try:
             obj = session.query(Dataset).filter(Dataset.id == ds_id).one()
             obj.enabled = False
+            session.merge(obj)
+            session.commit()
+        finally:
+            session.close()
+            
+    def markRunning(self, ds_id):
+        """Enable the dataset"""
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            obj = session.query(Dataset).filter(Dataset.id == ds_id).one()
+            obj.running = True
+            session.merge(obj)
+            session.commit()
+        finally:
+            session.close()
+    
+    def markNotRunning(self, ds_id):
+        """Disable the dataset"""
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            obj = session.query(Dataset).filter(Dataset.id == ds_id).one()
+            obj.running = False
             session.merge(obj)
             session.commit()
         finally:

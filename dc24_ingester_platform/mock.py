@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class MockDataSource(DataSource):
     def fetch(self, cwd, service=None):
-        time.sleep(10)
+        time.sleep(20)
         return [DataEntry(timestamp=datetime.datetime.now())]
         
 def data_source_factory(data_source_config, state, parameters):
@@ -73,7 +73,13 @@ class MockService(IIngesterService):
     
     def persist(self, entry, cwd):
         logger.info("Got entry: "+str(entry))
-
+        
+    def markRunning(self, ds_id):
+        self.datasets[0].running = True
+        
+    def markNotRunning(self, ds_id):
+        self.datasets[0].running = False
+        
 class MockServer(xmlrpc.XMLRPC):
     def __init__(self, service):
         """Initialise the management service. 

@@ -44,13 +44,14 @@ class IngesterEngine(object):
         
     def processSamplers(self):
         """Process all the active dataset samplers to determine which are
-        firing.
+        firing. Only one copy of this method will ever be running at a time.
         """
         now = datetime.datetime.now()
         datasets = self.service.getActiveDatasets()
         logger.info("Got %s datasets at %s"%(len(datasets), str(now)))
         # Verify if the schedule has run
         for dataset in datasets:
+            if dataset.running: continue
             if not hasattr(dataset.data_source, "sampling") or dataset.data_source.sampling == None: continue
             self.processSampler(now, dataset)
 
@@ -61,7 +62,7 @@ class IngesterEngine(object):
         1. load the sampler state
         2. Call the sampler
         3. If the sampler returns False, save the sampler state and exit
-        4. If it returns True, queue the sample to run
+        4. If it returns True, mark the dataset as running, queue the dataset to run
         """
         state = self.service.getSamplerState(dataset.id)
         try:
@@ -98,8 +99,10 @@ class IngesterEngine(object):
                 for entry in data_entries:
                     entry.dataset = dataset.id
                 self.queueIngest(data_entries, cwd)
-                        
+                
                 self.service.persistDataSourceState(dataset.id, data_source.state)
+                self.service.markNotRunning(dataset.id)
+                
             except Exception, e:
                 logger.error("DATASET.id=%d: %s"%(dataset.id,str(e)))
                 exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -123,6 +126,7 @@ class IngesterEngine(object):
   
     def queue(self, dataset, parameters=None):
         """Enqueue the dataset for fetch and process ASAP"""
+        self.service.markRunning(dataset.id)
         self._queue.put( (dataset, parameters) )
 
     def queueIngest(self, ingest_data, cwd):
