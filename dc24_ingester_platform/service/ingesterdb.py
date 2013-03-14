@@ -3,7 +3,7 @@ Created on Oct 5, 2012
 
 @author: nigel
 """
-from dc24_ingester_platform.service import IIngesterService, find_method, method, PersistenceError
+from dc24_ingester_platform.service import IIngesterService, find_method, method
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, DECIMAL, Boolean, ForeignKey, DateTime
 import sqlalchemy.orm as orm
@@ -15,18 +15,15 @@ import decimal
 import logging
 from dc24_ingester_platform.utils import parse_timestamp, format_timestamp
 
-import jcudc24ingesterapi.models.data_entry
 import jcudc24ingesterapi.models.locations
 import jcudc24ingesterapi.models.dataset
-import jcudc24ingesterapi.models.data_sources
-import jcudc24ingesterapi.schemas.data_entry_schemas
 import jcudc24ingesterapi.schemas.data_types
 from jcudc24ingesterapi.models.locations import LocationOffset
 from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
 import datetime
 from jcudc24ingesterapi.models.data_sources import DatasetDataSource
-from jcudc24ingesterapi.ingester_exceptions import InvalidCall,\
-    InvalidObjectError
+from jcudc24ingesterapi.ingester_exceptions import PersistenceError,\
+    InvalidObjectError, StaleObjectError
 
 logger = logging.getLogger(__name__)
 
@@ -510,7 +507,7 @@ class IngesterServiceDB(IIngesterService):
             try:
                 ds = session.query(Dataset).filter(Dataset.id == dataset.id, Dataset.version == dataset.version).one()
             except NoResultFound:
-                raise InvalidObjectError("No dataset with id=%d and version=%d to update"%(dataset.id, dataset.version))
+                raise StaleObjectError("No dataset with id=%d and version=%d to update"%(dataset.id, dataset.version))
         
         ds.version = dataset.version + 1 if dataset.version != None else 1
             
@@ -572,7 +569,7 @@ class IngesterServiceDB(IIngesterService):
             try:
                 reg = session.query(Region).filter(Region.id == region.id, Region.version == region.version).one()
             except NoResultFound:
-                raise InvalidObjectError("No region with id=%d and version=%d to update"%(region.id, region.version))
+                raise StaleObjectError("No region with id=%d and version=%d to update"%(region.id, region.version))
         
         reg.name = region.name
         reg.version = region.version + 1 if region.version != None else 1
@@ -609,7 +606,7 @@ class IngesterServiceDB(IIngesterService):
             try:
                 loc = session.query(Location).filter(Location.id == location.id, Location.version == location.version).one()
             except NoResultFound:
-                raise InvalidObjectError("No location with id=%d and version=%d to update"%(location.id, location.version))
+                raise StaleObjectError("No location with id=%d and version=%d to update"%(location.id, location.version))
         
         loc.version = location.version + 1 if location.version != None else 1
         
@@ -635,7 +632,7 @@ class IngesterServiceDB(IIngesterService):
         
     def _persistSchema(self, schema, for_, s):
         if schema.id != None:
-            raise InvalidCall("Updates are not supported for Schemas")
+            raise PersistenceError("Updates are not supported for Schemas")
         
         attrs = []
         for (key, attr) in schema.attrs.items():

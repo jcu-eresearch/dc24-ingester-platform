@@ -4,7 +4,7 @@ import unittest
 import tempfile
 import shutil
 import datetime
-from dc24_ingester_platform.service import ingesterdb, repodb, PersistenceError
+from dc24_ingester_platform.service import ingesterdb, repodb
 from jcudc24ingesterapi.models.locations import Region, Location
 from jcudc24ingesterapi.models.dataset import Dataset
 from jcudc24ingesterapi.schemas.data_entry_schemas import DataEntrySchema
@@ -16,7 +16,7 @@ from jcudc24ingesterapi.models.data_sources import PullDataSource,\
 from jcudc24ingesterapi.models.sampling import PeriodicSampling
 from jcudc24ingesterapi.models.data_entry import DataEntry
 from jcudc24ingesterapi.ingester_exceptions import InvalidObjectError,\
-    InvalidCall
+    StaleObjectError, PersistenceError
 
 class TestServiceModels(unittest.TestCase):
     def setUp(self):
@@ -248,7 +248,7 @@ class TestServiceModels(unittest.TestCase):
         self.assertEquals(1, region1.version)
         region1.version = 0
         
-        self.assertRaises(InvalidObjectError, self.service.persist, region1)
+        self.assertRaises(StaleObjectError, self.service.persist, region1)
         
         region1.version = 1
         region1.region_points = [(99,100)]
@@ -264,7 +264,7 @@ class TestServiceModels(unittest.TestCase):
         self.assertEquals(1, loc1.version)
         loc1.version = 0
         
-        self.assertRaises(InvalidObjectError, self.service.persist, loc1)
+        self.assertRaises(StaleObjectError, self.service.persist, loc1)
         
         loc1.version = 1
         loc2 = self.service.persist(loc1)
@@ -278,10 +278,10 @@ class TestServiceModels(unittest.TestCase):
         self.assertEquals(1, schema1.version)
         schema1.version = 0
         
-        self.assertRaises(InvalidCall, self.service.persist, schema1)
+        self.assertRaises(PersistenceError, self.service.persist, schema1)
         
         schema1.version = 1
-        self.assertRaises(InvalidCall, self.service.persist, schema1)
+        self.assertRaises(PersistenceError, self.service.persist, schema1)
         
     def test_dataset_persist(self):
         schema = DataEntrySchema("base1")
@@ -301,7 +301,7 @@ class TestServiceModels(unittest.TestCase):
         
         dataset1.version = 0
         
-        self.assertRaises(InvalidObjectError, self.service.persist, dataset1)
+        self.assertRaises(StaleObjectError, self.service.persist, dataset1)
         
         dataset1.version = 1
         dataset2 = self.service.persist(dataset1)

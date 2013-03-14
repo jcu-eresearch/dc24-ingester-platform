@@ -98,7 +98,3 @@ def makeService(db_url, repo_url):
     ingester_service = ingesterdb.IngesterServiceDB(db_url, repo=repo)
     return ingester_service
 
-class PersistenceError(Exception):
-    """Generic persistence exception"""
-    def __init__(self, msg):
-        Exception.__init__(self, msg)
