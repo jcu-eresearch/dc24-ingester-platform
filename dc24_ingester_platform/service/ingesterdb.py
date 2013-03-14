@@ -25,6 +25,8 @@ from jcudc24ingesterapi.models.locations import LocationOffset
 from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
 import datetime
 from jcudc24ingesterapi.models.data_sources import DatasetDataSource
+from jcudc24ingesterapi.ingester_exceptions import InvalidCall,\
+    InvalidObjectError
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +76,7 @@ class Region(Base):
     __tablename__ = "REGION"
     __xmlrpc_class__ = "region"
     id = Column(Integer, primary_key=True)
+    version = Column(Integer, nullable=False, default=1)
     name = Column(String)
     #parentRegions = orm.relationship("Region")
     region_points = orm.relationship("RegionPoint")
@@ -95,6 +98,7 @@ class Location(Base):
     __tablename__ = "LOCATIONS"
     __xmlrpc_class__ = "location"
     id = Column(Integer, primary_key=True)
+    version = Column(Integer, nullable=False, default=1)
     latitude = Column(DECIMAL)
     longitude = Column(DECIMAL)
     name = Column(String)
@@ -106,6 +110,7 @@ class Dataset(Base):
     __tablename__ = "DATASETS"
     __xmlrpc_class__ = "dataset"
     id = Column(Integer, primary_key=True)
+    version = Column(Integer, nullable=False, default=1)
     location = Column(Integer, ForeignKey('LOCATIONS.id'))
     data_source = orm.relationship("DataSource", uselist=False)
     schema = Column(Integer, ForeignKey('SCHEMA.id'))
@@ -162,6 +167,7 @@ class Schema(Base):
     __tablename__ = "SCHEMA"
     __xmlrpc_class__ = "schema"
     id = Column(Integer, primary_key=True)
+    version = Column(Integer, nullable=False, default=1)
     name = Column(String)
     for_ = Column(String, name="for")
     attributes = orm.relationship("SchemaAttribute")
@@ -315,12 +321,12 @@ def dao_to_domain(dao):
     domain = None
     if type(dao) == Region:
         domain = jcudc24ingesterapi.models.locations.Region()
-        copy_attrs(dao, domain, ["id", "name"])
+        copy_attrs(dao, domain, ["id", "version", "name"])
         domain.region_points = [(p.latitude, p.longitude) for p in dao.region_points]
     elif type(dao) == Schema:
         domain = domain_marshaller.class_for(dao.for_ + "_schema")()
         
-        copy_attrs(dao, domain, ["id", "name", "repository_id"])
+        copy_attrs(dao, domain, ["id", "version", "name", "repository_id"])
         domain.extends.extend(dao.extends)
         for attr in dao.attributes:
             attr_ = None
@@ -336,10 +342,10 @@ def dao_to_domain(dao):
             domain.addAttr(attr_)
     elif type(dao) == Location:
         domain = jcudc24ingesterapi.models.locations.Location()
-        copy_attrs(dao, domain, ["id", "name", "latitude", "longitude", "elevation", "repository_id"])
+        copy_attrs(dao, domain, ["id", "version", "name", "latitude", "longitude", "elevation", "repository_id"])
     elif type(dao) == Dataset:
         domain = jcudc24ingesterapi.models.dataset.Dataset()
-        copy_attrs(dao, domain, ["id", "location", "schema", "enabled", "description", "redbox_uri", "repository_id"])
+        copy_attrs(dao, domain, ["id", "version", "location", "schema", "enabled", "description", "redbox_uri", "repository_id"])
         if dao.x != None:
             domain.location_offset = LocationOffset(dao.x, dao.y, dao.z)
         if dao.data_source != None:
@@ -499,8 +505,14 @@ class IngesterServiceDB(IIngesterService):
             raise ValueError("The schema must be for a data_entry")
         
         ds = Dataset()
+
         if dataset.id != None:
-            ds = session.query(Dataset).filter(Dataset.id == dataset.id).one()
+            try:
+                ds = session.query(Dataset).filter(Dataset.id == dataset.id, Dataset.version == dataset.version).one()
+            except NoResultFound:
+                raise InvalidObjectError("No dataset with id=%d and version=%d to update"%(dataset.id, dataset.version))
+        
+        ds.version = dataset.version + 1 if dataset.version != None else 1
             
         copy_attrs(dataset, ds, ["location", "schema", "enabled", "description", "redbox_uri", "sampling_script"])
         if dataset.location_offset != None:
@@ -557,22 +569,50 @@ class IngesterServiceDB(IIngesterService):
         points = list(region.region_points)
         reg = Region()
         if region.id != None:
-            reg = session.query(Region).filter(Region.id == region["id"]).one()
+            try:
+                reg = session.query(Region).filter(Region.id == region.id, Region.version == region.version).one()
+            except NoResultFound:
+                raise InvalidObjectError("No region with id=%d and version=%d to update"%(region.id, region.version))
         
         reg.name = region.name
+        reg.version = region.version + 1 if region.version != None else 1
         
-        while len(reg.region_points) > 0:
-            reg.region_points.remove(0)
+        points_lookup = {}
+        existing = set()
+        for point in reg.region_points:
+            points_lookup[point.order] = point
+            existing.add(point.order)
+            
+        new_points = set()
         i = 0
         for lat,lng in points:
-            reg.region_points.append(RegionPoint(lat, lng, i))
+            new_points.add(i)
+            if i in points_lookup:
+                points_lookup[i].latitude = lat
+                points_lookup[i].longitude = lng
+            else:
+                reg.region_points.append(RegionPoint(lat, lng, i))
             i += 1
+        # Now clean up unneeded point
+        for i in existing - new_points:
+            point = points_lookup[i]
+            session.delete(point)
+            reg.region_points.remove(point)
         
         return self._persist(reg, session)
     
     @method("persist", "location")    
     def persistLocation(self, location, session, cwd):
         loc = Location()
+        
+        if location.id != None:
+            try:
+                loc = session.query(Location).filter(Location.id == location.id, Location.version == location.version).one()
+            except NoResultFound:
+                raise InvalidObjectError("No location with id=%d and version=%d to update"%(location.id, location.version))
+        
+        loc.version = location.version + 1 if location.version != None else 1
+        
         copy_attrs(location, loc, ["id", "name", "latitude", "longitude", "elevation"])
         # If the repo has a method to persist the dataset then call it and record the output
         fn = find_method(self.repo, "persist", "location")
@@ -595,7 +635,7 @@ class IngesterServiceDB(IIngesterService):
         
     def _persistSchema(self, schema, for_, s):
         if schema.id != None:
-            raise PersistenceError("Updates are not supported for Schemas")
+            raise InvalidCall("Updates are not supported for Schemas")
         
         attrs = []
         for (key, attr) in schema.attrs.items():

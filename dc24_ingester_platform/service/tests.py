@@ -15,6 +15,8 @@ from jcudc24ingesterapi.models.data_sources import PullDataSource,\
     DatasetDataSource
 from jcudc24ingesterapi.models.sampling import PeriodicSampling
 from jcudc24ingesterapi.models.data_entry import DataEntry
+from jcudc24ingesterapi.ingester_exceptions import InvalidObjectError,\
+    InvalidCall
 
 class TestServiceModels(unittest.TestCase):
     def setUp(self):
@@ -235,5 +237,75 @@ class TestServiceModels(unittest.TestCase):
                 found = True
         
         self.assertTrue(found, "Didn't find the dataset with the dataset data source")
+
+    def test_region_persist(self):
+        """Test that the region persists correctly, including version numbering, and that
+        region points are correctly updated"""
+        region = Region("Region 1")
+        region.region_points = [(1, 1), (1, 2)]
+        
+        region1 = self.service.persist(region)
+        self.assertEquals(1, region1.version)
+        region1.version = 0
+        
+        self.assertRaises(InvalidObjectError, self.service.persist, region1)
+        
+        region1.version = 1
+        region1.region_points = [(99,100)]
+        region2 = self.service.persist(region1)
+        self.assertEquals(2, region2.version)
+        self.assertEquals(1, len(region2.region_points))
+        self.assertEquals((99, 100), region2.region_points[0])
+        
+    def test_location_persist(self):
+        loc = Location(10.0, 11.0)
+        loc.name = "Location"
+        loc1 = self.service.persist(loc)
+        self.assertEquals(1, loc1.version)
+        loc1.version = 0
+        
+        self.assertRaises(InvalidObjectError, self.service.persist, loc1)
+        
+        loc1.version = 1
+        loc2 = self.service.persist(loc1)
+        self.assertEquals(2, loc2.version)
+        
+    def test_schema_persist(self):
+        schema = DataEntrySchema("base1")
+        schema.addAttr(FileDataType("file"))
+        
+        schema1 = self.service.persist(schema)
+        self.assertEquals(1, schema1.version)
+        schema1.version = 0
+        
+        self.assertRaises(InvalidCall, self.service.persist, schema1)
+        
+        schema1.version = 1
+        self.assertRaises(InvalidCall, self.service.persist, schema1)
+        
+    def test_dataset_persist(self):
+        schema = DataEntrySchema("base1")
+        schema.addAttr(FileDataType("file"))
+        schema = self.service.persist(schema)
+        
+        loc = Location(10.0, 11.0)
+        loc.name = "Location"
+        loc = self.service.persist(loc)
+        
+        dataset = Dataset()
+        dataset.schema = schema.id   
+        dataset.location = loc.id
+
+        dataset1 = self.service.persist(dataset)
+        self.assertEquals(1, dataset1.version)
+        
+        dataset1.version = 0
+        
+        self.assertRaises(InvalidObjectError, self.service.persist, dataset1)
+        
+        dataset1.version = 1
+        dataset2 = self.service.persist(dataset1)
+        self.assertEquals(2, dataset2.version)
+        
 if __name__ == '__main__':
     unittest.main()
