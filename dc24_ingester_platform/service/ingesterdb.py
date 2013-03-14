@@ -22,8 +22,10 @@ from jcudc24ingesterapi.models.locations import LocationOffset
 from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
 import datetime
 from jcudc24ingesterapi.models.data_sources import DatasetDataSource
-from jcudc24ingesterapi.ingester_exceptions import PersistenceError,\
+from jcudc24ingesterapi.ingester_exceptions import PersistenceError, \
     InvalidObjectError, StaleObjectError
+from sqlalchemy.types import TEXT
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -53,18 +55,18 @@ def obj_to_dict(obj, klass=None):
         ret["attributes"] = [{"name":attr.name, "class":attr.kind, "description":attr.description, "units":attr.units} for attr in obj.attributes]
         ret["extends"] = [obj_to_dict(p) for p in obj.extends]
     elif ret["class"] == "region":
-        obj.region_points.sort(cmp=lambda a,b: cmp(a.order,b.order))
+        obj.region_points.sort(cmp=lambda a, b: cmp(a.order, b.order))
         ret["region_points"] = [(point.latitude, point.longitude) for point in obj.region_points]
     elif ret["class"] == "dataset":
         if ret["x"] != None:
-            ret["location_offset"] = {"class":"offset", "x":ret["x"], 
+            ret["location_offset"] = {"class":"offset", "x":ret["x"],
                                       "y":ret["y"], "z":ret["z"]}
         del ret["x"]
         del ret["y"]
         del ret["z"]
     return ret
 
-#def dict_to_object(dic, obj):
+# def dict_to_object(dic, obj):
 #    for attr in dir(obj):
 #        if attr.startswith("_"): continue
 #        if dic.has_key(attr): setattr(obj, attr, dic[attr])
@@ -75,7 +77,7 @@ class Region(Base):
     id = Column(Integer, primary_key=True)
     version = Column(Integer, nullable=False, default=1)
     name = Column(String)
-    #parentRegions = orm.relationship("Region")
+    # parentRegions = orm.relationship("Region")
     region_points = orm.relationship("RegionPoint")
     
 class RegionPoint(Base):
@@ -101,7 +103,7 @@ class Location(Base):
     name = Column(String)
     elevation = Column(DECIMAL)
     repository_id = Column(String)
-    #region = orm.relationship("Region", uselist=False)
+    # region = orm.relationship("Region", uselist=False)
 
 class Dataset(Base):
     __tablename__ = "DATASETS"
@@ -171,8 +173,8 @@ class Schema(Base):
     repository_id = Column(String)
     extends = relationship("Schema",
         secondary=schema_to_schema,
-        primaryjoin=id==schema_to_schema.c.child_id,
-        secondaryjoin=id==schema_to_schema.c.parent_id)
+        primaryjoin=id == schema_to_schema.c.child_id,
+        secondaryjoin=id == schema_to_schema.c.parent_id)
     
 class SchemaAttribute(Base):
     __tablename__ = "SCHEMA_ATTRIBUTE"
@@ -206,6 +208,15 @@ class DataSourceState(Base):
     value = Column(String)
     dataset_id = Column(Integer, ForeignKey("DATASETS.id"))   
     
+class ObjectHistory(Base):
+    __tablename__ = "OBJECT_HISTORY"
+    id = Column(Integer, primary_key=True)
+    object = Column(String, nullable=False)
+    object_id = Column(Integer, nullable=False)
+    version = Column(String, nullable=False)
+    data = Column(TEXT)
+    timestamp = Column(DateTime)
+    
 def dict_to_obj(data):
     """Copies a dict onto an object"""
     obj = object()
@@ -227,7 +238,7 @@ def merge_parameters(src, dst, klass, name_attr="name", value_attr="value", igno
         if ig in props: props.remove(ig)
     
     for obj in dst:
-        prop_name = getattr(obj,name_attr)
+        prop_name = getattr(obj, name_attr)
         if prop_name in props:
             # Update
             setattr(obj, value_attr, getattr(src, prop_name))
@@ -333,7 +344,7 @@ def dao_to_domain(dao):
             elif attr.kind == "double": attr_ = jcudc24ingesterapi.schemas.data_types.Double(attr.name)
             elif attr.kind == "datetime": attr_ = jcudc24ingesterapi.schemas.data_types.DateTime(attr.name)
             elif attr.kind == "boolean": attr_ = jcudc24ingesterapi.schemas.data_types.Boolean(attr.name)
-            else: raise PersistenceError("Invalid data type: %s"%attr.kind)
+            else: raise PersistenceError("Invalid data type: %s" % attr.kind)
             attr_.units = attr.units
             attr_.description = attr.description
             domain.addAttr(attr_)
@@ -354,7 +365,7 @@ def dao_to_domain(dao):
         copy_attrs(dao, domain, get_properties(domain))
         copy_parameters(dao.parameters, domain, get_properties(domain))
     else:
-        raise PersistenceError("Could not convert DAO object to domain: %s"%(str(type(dao))))
+        raise PersistenceError("Could not convert DAO object to domain: %s" % (str(type(dao))))
     return domain
 
 def sort_datasets(datasets):
@@ -441,7 +452,7 @@ class IngesterServiceDB(IIngesterService):
                             obj.data_source.dataset_id = datasets[obj.data_source.dataset_id]
                         
                     elif cls.endswith("schema"):
-                        obj.extends = [ schemas[p_id] if p_id<0 else p_id for p_id in obj.extends]
+                        obj.extends = [ schemas[p_id] if p_id < 0 else p_id for p_id in obj.extends]
                             
                     fn = find_method(self, "persist", cls)
                     if fn == None:
@@ -480,7 +491,7 @@ class IngesterServiceDB(IIngesterService):
                 return obj
             finally:
                 s.close()
-        raise ValueError("%s not supported"%(cls))
+        raise ValueError("%s not supported" % (cls))
 
     @method("persist", "dataset")
     def persistDataset(self, dataset, session, cwd):
@@ -493,11 +504,11 @@ class IngesterServiceDB(IIngesterService):
         try:
             location = session.query(Location).filter(Location.id == dataset.location).one()
         except NoResultFound, e:
-            raise ValueError("Provided location not found: %d"%dataset.location)
+            raise ValueError("Provided location not found: %d" % dataset.location)
         try:
             schema = session.query(Schema).filter(Schema.id == dataset.schema).one()
         except NoResultFound, e:
-            raise ValueError("Provided schema not found: %d"%dataset.schema)
+            raise ValueError("Provided schema not found: %d" % dataset.schema)
         if schema.for_ != "data_entry":
             raise ValueError("The schema must be for a data_entry")
         
@@ -506,8 +517,9 @@ class IngesterServiceDB(IIngesterService):
         if dataset.id != None:
             try:
                 ds = session.query(Dataset).filter(Dataset.id == dataset.id, Dataset.version == dataset.version).one()
+                self.save_version(session, ds)
             except NoResultFound:
-                raise StaleObjectError("No dataset with id=%d and version=%d to update"%(dataset.id, dataset.version))
+                raise StaleObjectError("No dataset with id=%d and version=%d to update" % (dataset.id, dataset.version))
         
         ds.version = dataset.version + 1 if dataset.version != None else 1
             
@@ -568,8 +580,9 @@ class IngesterServiceDB(IIngesterService):
         if region.id != None:
             try:
                 reg = session.query(Region).filter(Region.id == region.id, Region.version == region.version).one()
+                self.save_version(session, reg)
             except NoResultFound:
-                raise StaleObjectError("No region with id=%d and version=%d to update"%(region.id, region.version))
+                raise StaleObjectError("No region with id=%d and version=%d to update" % (region.id, region.version))
         
         reg.name = region.name
         reg.version = region.version + 1 if region.version != None else 1
@@ -582,7 +595,7 @@ class IngesterServiceDB(IIngesterService):
             
         new_points = set()
         i = 0
-        for lat,lng in points:
+        for lat, lng in points:
             new_points.add(i)
             if i in points_lookup:
                 points_lookup[i].latitude = lat
@@ -605,8 +618,9 @@ class IngesterServiceDB(IIngesterService):
         if location.id != None:
             try:
                 loc = session.query(Location).filter(Location.id == location.id, Location.version == location.version).one()
+                self.save_version(session, loc)
             except NoResultFound:
-                raise StaleObjectError("No location with id=%d and version=%d to update"%(location.id, location.version))
+                raise StaleObjectError("No location with id=%d and version=%d to update" % (location.id, location.version))
         
         loc.version = location.version + 1 if location.version != None else 1
         
@@ -659,10 +673,10 @@ class IngesterServiceDB(IIngesterService):
             # Check parents are of the correct type
             for parent in db_parents:
                 if parent.for_ != "schema" and parent.for_ != for_: 
-                    raise PersistenceError("Parent %d of different type to ingested schema"%(parent.id))
+                    raise PersistenceError("Parent %d of different type to ingested schema" % (parent.id))
                 for parent_attr in parent.attributes:
                     if parent_attr.name in attributes:
-                        raise PersistenceError("Duplicate attribute definition %s from parent %d"%(parent_attr.name, parent.id))
+                        raise PersistenceError("Duplicate attribute definition %s from parent %d" % (parent_attr.name, parent.id))
                     attributes.append(parent_attr.name)
                 schema_.extends.append(parent)
             
@@ -694,7 +708,7 @@ class IngesterServiceDB(IIngesterService):
         except Exception, e:
             logger.error("Error saving: " + str(e))
             session.rollback()
-            raise Exception("Could not save dataset:"+ str(e))
+            raise Exception("Could not save dataset:" + str(e))
             
     def deleteDataset(self, dataset):
         pass
@@ -772,7 +786,7 @@ class IngesterServiceDB(IIngesterService):
             ret_list = []
             for obj in objs:
                 for attr in get_properties(obj):
-                    logger.info("%s=%s"%(attr, getattr(obj, attr)))
+                    logger.info("%s=%s" % (attr, getattr(obj, attr)))
                 ret = dao_to_domain(obj)
                 ret_list.append(ret)
             return ret_list
@@ -834,7 +848,7 @@ class IngesterServiceDB(IIngesterService):
             to_del = []
             
             for obj in objs:
-                prop_name = getattr(obj,"name")
+                prop_name = getattr(obj, "name")
                 if prop_name in state:
                     # Update
                     setattr(obj, "value", state[prop_name])
@@ -875,7 +889,7 @@ class IngesterServiceDB(IIngesterService):
             to_del = []
             
             for obj in objs:
-                prop_name = getattr(obj,"name")
+                prop_name = getattr(obj, "name")
                 if prop_name in state:
                     # Update
                     setattr(obj, "value", state[prop_name])
@@ -983,7 +997,7 @@ class IngesterServiceDB(IIngesterService):
         elif object_type == "location":
             obj_type = Location
         if obj_type == None:
-            raise ValueError("object_type==%s is not supported"%object_type)
+            raise ValueError("object_type==%s is not supported" % object_type)
         
         s = orm.sessionmaker(bind=self.engine)()
         try:
@@ -995,3 +1009,20 @@ class IngesterServiceDB(IIngesterService):
         finally:
             s.close()
     
+    def save_version(self, session, obj):
+        """Save a JSON encoded copy of the original object before updating. 
+        This method will put the save in the transaction, so that if the transction
+        is rolled back, the version save will not occur"""
+        
+        if not isinstance(obj, (Region, Location, Dataset)):
+            logger.error("Tried to save the version of a non versionable object")
+            return
+        
+        history = ObjectHistory()
+        history.object = obj.__class__.__name__
+        history.object_id = obj.id
+        history.version = obj.version
+        history.timestamp = datetime.datetime.utcnow()
+        history.data = json.dumps(domain_marshaller.obj_to_dict(dao_to_domain(obj)))
+        
+        session.add(history)
