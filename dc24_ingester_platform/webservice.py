@@ -107,9 +107,11 @@ class ManagementService(xmlrpc.XMLRPC):
 
     def xmlrpc_getIngesterEvents(self, dataset_id):
         try:
-            return self.service.get_ingester_events(dataset_id)
-        except Exception, e:
-            raise xmlrpc.Fault(1, str(e))
+            return self._marshaller.obj_to_dict(self.service.get_ingester_events(dataset_id))
+        except ValueError, e:
+            raise xmlrpc.Fault(99, str(e))
+        except IngestPlatformError, e:
+            raise translate_exception(e)
 
     def xmlrpc_getRegion(self, reg_id):
         """Retrieve a location by id

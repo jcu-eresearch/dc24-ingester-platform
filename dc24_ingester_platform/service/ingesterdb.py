@@ -16,6 +16,7 @@ import logging
 from dc24_ingester_platform.utils import parse_timestamp, format_timestamp
 
 import jcudc24ingesterapi.models.locations
+import jcudc24ingesterapi.models.system
 import jcudc24ingesterapi.models.dataset
 import jcudc24ingesterapi.schemas.data_types
 from jcudc24ingesterapi.models.locations import LocationOffset
@@ -32,45 +33,6 @@ logger = logging.getLogger(__name__)
 Base = declarative_base()
 
 domain_marshaller = Marshaller()
-
-# FIXME remove this method and use the main marshaller instead
-def obj_to_dict(obj, klass=None):
-    """Maps an object of base class BaseManagementObject to a dict.
-    """
-    ret = {}
-    for attr in dir(obj):
-        if attr.startswith("_") or attr == "metadata": continue
-        v = getattr(obj, attr)
-        if type(v) in (str, int, float, unicode, dict, bool, type(None)):
-            ret[attr] = v
-        elif type(v) == decimal.Decimal:
-            ret[attr] = float(v)
-        elif type(v) == datetime.datetime:
-            ret[attr] = format_timestamp(v)
-    if klass != None: ret["class"] = klass
-    elif hasattr(obj, "__xmlrpc_class__"): ret["class"] = obj.__xmlrpc_class__
-
-    if ret["class"] == "schema":
-        ret["class"] = ret["for_"] + "_schema"
-        del ret["for_"]
-        ret["attributes"] = [{"name":attr.name, "class":attr.kind, "description":attr.description, "units":attr.units} for attr in obj.attributes]
-        ret["extends"] = [obj_to_dict(p) for p in obj.extends]
-    elif ret["class"] == "region":
-        obj.region_points.sort(cmp=lambda a, b: cmp(a.order, b.order))
-        ret["region_points"] = [(point.latitude, point.longitude) for point in obj.region_points]
-    elif ret["class"] == "dataset":
-        if ret["x"] != None:
-            ret["location_offset"] = {"class":"offset", "x":ret["x"],
-                                      "y":ret["y"], "z":ret["z"]}
-        del ret["x"]
-        del ret["y"]
-        del ret["z"]
-    return ret
-
-# def dict_to_object(dic, obj):
-#    for attr in dir(obj):
-#        if attr.startswith("_"): continue
-#        if dic.has_key(attr): setattr(obj, attr, dic[attr])
 
 class Region(Base):
     __tablename__ = "REGION"
@@ -218,8 +180,8 @@ class ObjectHistory(Base):
     data = Column(TEXT)
     timestamp = Column(DateTime)
     
-class IngestTask(Base):
-    __tablename__ = "INGEST_TASK"
+class IngesterTask(Base):
+    __tablename__ = "INGESTER_TASK"
     id = Column(Integer, primary_key=True)
     dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
     dataset = orm.relationship("Dataset", uselist=False)
@@ -228,13 +190,6 @@ class IngestTask(Base):
     cwd = Column(String, nullable=False)
     parameters = Column(TEXT)
     
-def dict_to_obj(data):
-    """Copies a dict onto an object"""
-    obj = object()
-    for k in data:
-        setattr(obj, k, data[k])
-    return obj
-
 def merge_parameters(src, dst, klass, name_attr="name", value_attr="value", ignore_props=[]):
     """This method updates col_orig removing any that aren't in col_new, updating those that are, and adding new ones
     using klass as the constructor
@@ -375,6 +330,9 @@ def dao_to_domain(dao):
         domain = domain_marshaller.class_for(dao.kind)()
         copy_attrs(dao, domain, get_properties(domain))
         copy_parameters(dao.parameters, domain, get_properties(domain))
+    elif type(dao) == IngesterLog:
+        domain = jcudc24ingesterapi.models.system.IngesterLog()
+        copy_attrs(dao, domain, get_properties(domain))
     else:
         raise PersistenceError("Could not convert DAO object to domain: %s" % (str(type(dao))))
     return domain
@@ -772,7 +730,7 @@ class IngesterServiceDB(IIngesterService):
             obj.running = True
             session.merge(obj)
 
-            task = IngestTask()
+            task = IngesterTask()
             task.dataset_id = ds_id
             task.parameters = json.dumps(parameters)
             task.cwd = cwd
@@ -791,7 +749,7 @@ class IngesterServiceDB(IIngesterService):
         without conflict"""
         session = orm.sessionmaker(bind=self.engine)()
         try:
-            task = session.query(IngestTask).filter(IngestTask.id == ingest_task_id).one()
+            task = session.query(IngesterTask).filter(IngesterTask.id == ingest_task_id).one()
             task.state = 1
             session.merge(task)
             
@@ -807,7 +765,7 @@ class IngesterServiceDB(IIngesterService):
         """Once the ingest is complete the ingest process is complete"""
         session = orm.sessionmaker(bind=self.engine)()
         try:
-            task = session.query(IngestTask).filter(IngestTask.id == ingest_task_id).one()
+            task = session.query(IngesterTask).filter(IngesterTask.id == ingest_task_id).one()
             task.state = 2
             session.merge(task)
             
@@ -821,7 +779,7 @@ class IngesterServiceDB(IIngesterService):
         """
         session = orm.sessionmaker(bind=self.engine)()
         try:
-            ret = session.query(IngestTask).filter(IngestTask.state.in_( (0,1) )).all()
+            ret = session.query(IngesterTask).filter(IngesterTask.state.in_( (0,1) )).all()
             return [(obj.id, obj.state, dao_to_domain(obj.dataset), json.loads(obj.parameters), obj.cwd) for obj in ret]
         finally:
             session.close()
@@ -890,7 +848,7 @@ class IngesterServiceDB(IIngesterService):
             objs = s.query(IngesterLog).filter(IngesterLog.dataset_id == dataset_id).all()
             ret_list = []
             for obj in objs:
-                ret_list.append(obj_to_dict(obj))
+                ret_list.append(dao_to_domain(obj))
             return ret_list
         finally:
             s.close()
