@@ -54,7 +54,7 @@ class TestServiceModels(unittest.TestCase):
         # Now we're using the correct type of schema
         dataset1a = self.service.persist(dataset)
         
-        dataset1b = self.service.getDataset(dataset1a.id)
+        dataset1b = self.service.get_dataset(dataset1a.id)
         self.assertEquals(dataset1a.id, dataset1b.id)
         self.assertDictEqual(dataset1a.__dict__, dataset1b.__dict__)
         
@@ -66,20 +66,20 @@ class TestServiceModels(unittest.TestCase):
         self.assertEqual("TEST", dataset1c.data_source.processing_script)
         self.assertNotEqual(None, dataset1c.data_source.sampling)
         
-        datasets = self.service.getActiveDatasets()
+        datasets = self.service.get_active_datasets()
         self.assertEquals(1, len(datasets))
         self.assertNotEqual(None, datasets[0].data_source)
         self.assertEqual("TEST", datasets[0].data_source.processing_script)
         self.assertNotEqual(None, datasets[0].data_source.sampling)
 
         # Test with criteria
-        datasets = self.service.getActiveDatasets(kind="pull_data_source")
+        datasets = self.service.get_active_datasets(kind="pull_data_source")
         self.assertEquals(1, len(datasets))
         
-        datasets = self.service.getActiveDatasets(kind="push_data_source")
+        datasets = self.service.get_active_datasets(kind="push_data_source")
         self.assertEquals(0, len(datasets))
         
-        schema1b = self.service.getSchema(schema1a.id)
+        schema1b = self.service.get_schema(schema1a.id)
         self.assertEquals(schema1a.id, schema1b.id)
         
         datasets = self.service.search("dataset")

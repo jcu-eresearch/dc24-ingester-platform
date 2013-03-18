@@ -141,7 +141,7 @@ class RepositoryDB(BaseRepositoryService):
                 shutil.copyfile(os.path.join(cwd, attrs[k].f_path), dest_file_name)
                 attrs[k].f_path = dest_file_name
     
-    def findDataEntries(dataset_id):
+    def find_data_entries(dataset_id):
         """Find all observations within this dataset"""
         s = orm.sessionmaker(bind=self.engine)()
         ret = []
@@ -152,7 +152,7 @@ class RepositoryDB(BaseRepositoryService):
         finally:
             s.close()
 
-    def persistDataEntry(self, dataset, schema, data_entry, cwd):
+    def persist_data_entry(self, dataset, schema, data_entry, cwd):
         # Check the attributes are actually in the schema
         self.validate_schema(data_entry.data, schema.attrs)
         
@@ -173,28 +173,28 @@ class RepositoryDB(BaseRepositoryService):
             session.flush()
             session.commit()
             
-            return self._getDataEntry(obs.dataset, obs.id, session)
+            return self._get_data_entry(obs.dataset, obs.id, session)
         finally:
             session.close()
             
-    def getDataEntry(self, dataset_id, data_entry_id):
+    def get_data_entry(self, dataset_id, data_entry_id):
         
         session = orm.sessionmaker(bind=self.engine)()
         try:
-            return self._getDataEntry(dataset_id, data_entry_id, session)
+            return self._get_data_entry(dataset_id, data_entry_id, session)
         finally:
             session.close()
             
-    def getDataEntryStream(self, dataset_id, data_entry_id, attr):
+    def get_data_entry_stream(self, dataset_id, data_entry_id, attr):
         """Get a file stream for the data entry"""
-        data_entry = self.getDataEntry(dataset_id, data_entry_id)
+        data_entry = self.get_data_entry(dataset_id, data_entry_id)
         return open(data_entry[attr].f_path, "rb")
     
-    def _getDataEntry(self, dataset_id, data_entry_id, session):
+    def _get_data_entry(self, dataset_id, data_entry_id, session):
         obs = session.query(Observation).filter(Observation.dataset == dataset_id,
                                                 Observation.id == data_entry_id).one()
-        dataset = self.service.getDataset(obs.dataset)
-        schema = self.service.getSchema(dataset.schema)
+        dataset = self.service.get_dataset(obs.dataset)
+        schema = self.service.get_schema(dataset.schema)
         
         entry = DataEntry()
         entry.dataset = obs.dataset
@@ -207,7 +207,7 @@ class RepositoryDB(BaseRepositoryService):
                 entry[attr.name] = attr.value 
         return entry
             
-    def persistDatasetMetadata(self, dataset, schema, attrs, cwd):
+    def persist_dataset_metadata(self, dataset, schema, attrs, cwd):
         # Check the attributes are actually in the schema
         self.validate_schema(attrs, schema.attrs)
         
@@ -238,7 +238,7 @@ class RepositoryDB(BaseRepositoryService):
         finally:
             s.close()
             
-    def persistDataEntryMetadata(self, data_entry, schema, attrs, cwd):
+    def persist_data_entry_metadata(self, data_entry, schema, attrs, cwd):
         # Check the attributes are actually in the schema
         self.validate_schema(attrs, schema.attrs)
         

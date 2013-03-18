@@ -107,7 +107,7 @@ class ManagementService(xmlrpc.XMLRPC):
 
     def xmlrpc_getIngesterEvents(self, dataset_id):
         try:
-            return self.service.getIngesterEvents(dataset_id)
+            return self.service.get_ingester_events(dataset_id)
         except Exception, e:
             raise xmlrpc.Fault(1, str(e))
 
@@ -115,7 +115,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Retrieve a location by id
         """
         try:
-            return self._marshaller.obj_to_dict(self.service.getRegion(reg_id))
+            return self._marshaller.obj_to_dict(self.service.get_region(reg_id))
         except ValueError, e:
             raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
@@ -125,7 +125,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Retrieve a location by id
         """
         try:
-            return self._marshaller.obj_to_dict(self.service.getLocation(loc_id))
+            return self._marshaller.obj_to_dict(self.service.get_location(loc_id))
         except ValueError, e:
             raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
@@ -135,7 +135,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Retrieve a schema by id
         """
         try:
-            return self._marshaller.obj_to_dict(self.service.getSchema(s_id))
+            return self._marshaller.obj_to_dict(self.service.get_schema(s_id))
         except ValueError, e:
             raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
@@ -145,7 +145,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Retrieve a dataset by id
         """
         try:
-            return self._marshaller.obj_to_dict(self.service.getDataset(ds_id))
+            return self._marshaller.obj_to_dict(self.service.get_dataset(ds_id))
         except ValueError, e:
             raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
@@ -155,7 +155,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Retrieve a data entry by dataset id + data entry id
         """
         try:
-            return self._marshaller.obj_to_dict(self.service.getDataEntry(ds_id, de_id))
+            return self._marshaller.obj_to_dict(self.service.get_data_entry(ds_id, de_id))
         except ValueError, e:
             raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
@@ -165,7 +165,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Enable ingestion of a dataset.
         """
         try:
-            return self.service.enableDataset(ds_id)
+            return self.service.enable_dataset(ds_id)
         except ValueError, e:
             raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
@@ -175,7 +175,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Disable ingestion of a dataset.
         """
         try:
-            return self.service.disableDataset(ds_id)
+            return self.service.disable_dataset(ds_id)
         except ValueError, e:
             raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
@@ -185,7 +185,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Disable ingestion of a dataset.
         """
         try:
-            return self._marshaller.obj_to_dict(self.service.findDatasets(**search_args))
+            return self._marshaller.obj_to_dict(self.service.find_datasets(**search_args))
         except ValueError, e:
             raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
@@ -195,7 +195,7 @@ class ManagementService(xmlrpc.XMLRPC):
         """Disable ingestion of a dataset.
         """
         try:
-            return self.service.runIngester(d_id)
+            return self.service.run_ingester(d_id)
         except ValueError, e:
             raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:

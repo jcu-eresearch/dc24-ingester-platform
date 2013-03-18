@@ -84,7 +84,7 @@ class RepositoryDAM(BaseRepositoryService):
         self.new_objs = []
 
     @method("persist", "schema")
-    def persistSchema(self, schema):
+    def persist_schema(self, schema):
         if hasattr(schema, "repository_id") and schema.repository_id != None:
             logger.error("Can't update schemas")
             return schema.repository_id
@@ -107,7 +107,7 @@ class RepositoryDAM(BaseRepositoryService):
         return dam_schema["id"]
 
     @method("persist", "location")
-    def persistLocation(self, location):
+    def persist_location(self, location):
         dam_location = {"dam_type":"LocationMetaData",
             "name":location.name,
             "latitude":location.latitude,
@@ -121,7 +121,7 @@ class RepositoryDAM(BaseRepositoryService):
         return dam_location["id"]
 
     @method("persist", "dataset")
-    def persistDataset(self, dataset, schema, location):
+    def persist_dataset(self, dataset, schema, location):
         dam_dataset = {"dam_type":"DatasetMetaData",
             "location":location.repository_id,
             "zone":"",
@@ -145,7 +145,7 @@ class RepositoryDAM(BaseRepositoryService):
                     attr["value"] = attributes[attr_name]
                     repo.ingest_attribute(obs["id"], attr)
     
-    def persistDataEntry(self, dataset, schema, data_entry, cwd):
+    def persist_data_entry(self, dataset, schema, data_entry, cwd):
         # Check the attributes are actually in the schema
         self.validate_schema(data_entry.data, schema.attrs)
         
@@ -161,9 +161,9 @@ class RepositoryDAM(BaseRepositoryService):
             repo.unlock(dam_obs["id"])
             self.new_objs.append(dam_obs["id"])
         
-        return self.getDataEntry(dataset.id, dam_obs["id"])
+        return self.get_data_entry(dataset.id, dam_obs["id"])
         
-    def getDataEntry(self, dataset_id, data_entry_id):
+    def get_data_entry(self, dataset_id, data_entry_id):
         with self.connection() as repo:
             dam_obj = repo.getTuples(data_entry_id)
         if dam_obj == None and len(dam_obj) == 1: return None
@@ -183,7 +183,7 @@ class RepositoryDAM(BaseRepositoryService):
                 data_entry.data[attr["name"]] = attr["value"]
         return data_entry
 
-    def getDataEntryStream(self, dataset_id, data_entry_id, attr):
+    def get_data_entry_stream(self, dataset_id, data_entry_id, attr):
         repo = self.connection()
         return repo.retrieve_attribute(data_entry_id, attr, close_connection=True)
     

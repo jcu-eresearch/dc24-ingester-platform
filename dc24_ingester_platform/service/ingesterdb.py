@@ -495,7 +495,7 @@ class IngesterServiceDB(IIngesterService):
         raise ValueError("%s not supported" % (cls))
 
     @method("persist", "dataset")
-    def persistDataset(self, dataset, session, cwd):
+    def persist_dataset(self, dataset, session, cwd):
         """Assumes that we have a copy of the object, so we can change it if required.
         """
         if dataset.location == None:
@@ -572,10 +572,10 @@ class IngesterServiceDB(IIngesterService):
             ds.repository_id = fn(ds, schema, location)
 
         self._persist(ds, session)
-        return self._getDataset(ds.id, session)
+        return self._get_dataset(ds.id, session)
 
     @method("persist", "region")    
-    def persistRegion(self, region, session, cwd):
+    def persist_region(self, region, session, cwd):
         points = list(region.region_points)
         reg = Region()
         if region.id != None:
@@ -613,7 +613,7 @@ class IngesterServiceDB(IIngesterService):
         return self._persist(reg, session)
     
     @method("persist", "location")    
-    def persistLocation(self, location, session, cwd):
+    def persist_location(self, location, session, cwd):
         loc = Location()
         
         if location.id != None:
@@ -634,18 +634,18 @@ class IngesterServiceDB(IIngesterService):
         return self._persist(loc, session)
     
     @method("persist", "dataset_metadata_schema")
-    def persistDatasetMetaDataSchema(self, schema, session, cwd):
-        return self._persistSchema(schema, "dataset_metadata", session)
+    def persist_dataset_metadata_schema(self, schema, session, cwd):
+        return self._persist_schema(schema, "dataset_metadata", session)
 
     @method("persist", "data_entry_schema")
-    def persistDataEntrySchema(self, schema, session, cwd):
-        return self._persistSchema(schema, "data_entry", session)
+    def persist_data_entry_schema(self, schema, session, cwd):
+        return self._persist_schema(schema, "data_entry", session)
 
     @method("persist", "schema")
-    def persistGenericSchema(self, schema, session, cwd):
-        return self._persistSchema(schema, "schema", session)
+    def persist_generic_schema(self, schema, session, cwd):
+        return self._persist_schema(schema, "schema", session)
         
-    def _persistSchema(self, schema, for_, s):
+    def _persist_schema(self, schema, for_, s):
         if schema.id != None:
             raise PersistenceError("Updates are not supported for Schemas")
         
@@ -711,18 +711,18 @@ class IngesterServiceDB(IIngesterService):
             session.rollback()
             raise Exception("Could not save dataset:" + str(e))
             
-    def deleteDataset(self, dataset):
+    def delete_dataset(self, dataset):
         pass
     
-    def getDataset(self, ds_id):
+    def get_dataset(self, ds_id):
         """Get the dataset as a DTO"""
         s = orm.sessionmaker(bind=self.engine)()
         try:
-            return self._getDataset(ds_id, s)
+            return self._get_dataset(ds_id, s)
         finally:
             s.close()
         
-    def _getDataset(self, ds_id, session):
+    def _get_dataset(self, ds_id, session):
         """Private method to actually get the dataset using the session provided.
         """
         try:
@@ -731,7 +731,7 @@ class IngesterServiceDB(IIngesterService):
         except NoResultFound, e:
             return None
         
-    def enableDataset(self, ds_id):
+    def enable_dataset(self, ds_id):
         """Enable the dataset"""
         session = orm.sessionmaker(bind=self.engine)()
         try:
@@ -742,7 +742,7 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
     
-    def disableDataset(self, ds_id):
+    def disable_dataset(self, ds_id):
         """Disable the dataset"""
         session = orm.sessionmaker(bind=self.engine)()
         try:
@@ -787,7 +787,7 @@ class IngesterServiceDB(IIngesterService):
         :returns: List of tuples (task_id, state, dataset object, parameter dict, cwd)
         """
 
-    def getActiveDatasets(self, kind=None):
+    def get_active_datasets(self, kind=None):
         """Returns all enabled datasets."""
         s = orm.sessionmaker(bind=self.engine)()
         try:
@@ -808,7 +808,7 @@ class IngesterServiceDB(IIngesterService):
         finally:
             s.close()
     
-    def getSchema(self, s_id):
+    def get_schema(self, s_id):
         """Get the schema as a DTO"""
         session = orm.sessionmaker(bind=self.engine)()
         try:
@@ -818,7 +818,7 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
             
-    def getLocation(self, loc_id):
+    def get_location(self, loc_id):
         """Get the location as a DTO"""
         session = orm.sessionmaker(bind=self.engine)()
         try:
@@ -844,7 +844,7 @@ class IngesterServiceDB(IIngesterService):
         finally:
             s.close()
     
-    def getIngesterEvents(self, dataset_id):
+    def get_ingester_events(self, dataset_id):
         """Returns a list of all events that have occurred on a given dataset"""
         s = orm.sessionmaker(bind=self.engine)()
         try:
@@ -938,7 +938,7 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
 
-    def findDatasets(self, **kwargs):
+    def find_datasets(self, **kwargs):
         """Find all datasets with the provided attributes"""
         session = orm.sessionmaker(bind=self.engine)()
         try:
@@ -950,17 +950,17 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
 
-    def findObservations(self, d_id):
-        return self.repo.findObservations(self.getDataset(d_id))
+    def find_data_entries(self, d_id):
+        return self.repo.find_data_entries(self.get_dataset(d_id))
 
-    def getDataEntry(self, dataset_id, data_entry_id):
-        return self.repo.getDataEntry(dataset_id, data_entry_id)
+    def get_data_entry(self, dataset_id, data_entry_id):
+        return self.repo.get_data_entry(dataset_id, data_entry_id)
 
-    def getDataEntryStream(self, dataset_id, data_entry_id, attr):
-        return self.repo.getDataEntryStream(dataset_id, data_entry_id, attr)
+    def get_data_entry_stream(self, dataset_id, data_entry_id, attr):
+        return self.repo.get_data_entry_stream(dataset_id, data_entry_id, attr)
 
     @method("persist", "data_entry")
-    def persistDataEntry(self, data_entry, session, cwd):
+    def persist_data_entry(self, data_entry, session, cwd):
         """Persist the observation to the repository. This method is also responsible for 
         notifying the ingester of any new data, such that triggers can be invoked.
         
@@ -974,31 +974,31 @@ class IngesterServiceDB(IIngesterService):
             raise ValueError("timestamp is not set")
 
         dataset_id = data_entry.dataset
-        dataset = self.getDataset(dataset_id)
-        schema = self.getSchema(dataset.schema)
+        dataset = self.get_dataset(dataset_id)
+        schema = self.get_schema(dataset.schema)
 
-        obs = self.repo.persistDataEntry(dataset, schema, data_entry, cwd)
+        obs = self.repo.persist_data_entry(dataset, schema, data_entry, cwd)
         for listener in self.obs_listeners:
             listener.notify_new_data_entry(obs, cwd)
         return obs
 
     def runIngester(self, d_id):
         """Run the ingester for the given dataset ID"""
-        self.ingester.queue(self.getDataset(d_id))
+        self.ingester.queue(self.get_dataset(d_id))
 
     @method("persist", "dataset_metadata_entry")
-    def persistDatasetMetadata(self, dataset_metadata, session, cwd):
+    def persist_dataset_metadata(self, dataset_metadata, session, cwd):
         dataset_id = dataset_metadata.object_id
-        dataset = self.getDataset(dataset_id)
-        schema = self.getSchema(dataset_metadata.metadata_schema)
+        dataset = self.get_dataset(dataset_id)
+        schema = self.get_schema(dataset_metadata.metadata_schema)
         return self.repo.persistDatasetMetadata(dataset, schema, dataset_metadata.data, cwd)
 
     @method("persist", "data_entry_metadata_entry")
-    def persistDataEntryMetadata(self, data_entry_metadata, session, cwd):
+    def persist_data_entry_metadata(self, data_entry_metadata, session, cwd):
         dataset_id = data_entry_metadata.object_id
-        data_entry = self.getDataEntry(dataset_id)
-        schema = self.getSchema(data_entry_metadata.metadata_schema)
-        return self.repo.persistDataEntryMetadata(data_entry, schema, data_entry_metadata.data, cwd)
+        data_entry = self.get_data_entry(dataset_id)
+        schema = self.get_schema(data_entry_metadata.metadata_schema)
+        return self.repo.persist_data_entry_metadata(data_entry, schema, data_entry_metadata.data, cwd)
 
     def search(self, object_type, criteria=None):
         where = []

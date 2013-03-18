@@ -11,7 +11,7 @@ class BaseRepositoryService(object):
             if k not in schema:
                 raise ValueError("%s is not in the schema"%(k))
             
-    def persistDataEntry(self, dataset, schema, time, obs, cwd):
+    def persist_data_entry(self, dataset, schema, time, obs, cwd):
         """Persist the observation into the repository.
 
         :param dataset: the dataset object which the observation will be persisted in
@@ -22,42 +22,42 @@ class BaseRepositoryService(object):
         """
         raise NotImplementedError()
     
-    def getDataEntry(self, dataset_id, data_entry_id):
+    def get_data_entry(self, dataset_id, data_entry_id):
         raise NotImplementedError()
 
-    def getDataEntryStream(self, dataset_id, data_entry_id, attr):
+    def get_data_entry_stream(self, dataset_id, data_entry_id, attr):
         raise NotImplementedError()
 
 class IIngesterService(object):
     """Interface for ingester service
     """
-    def persistDataset(self, dataset):
+    def persist_dataset(self, dataset):
         raise NotImplementedError()
-    def deleteDataset(self, dataset):
+    def delete_dataset(self, dataset):
         raise NotImplementedError()
-    def getDataset(self, id=None):
+    def get_dataset(self, id=None):
         raise NotImplementedError()
-    def getActiveDatasets(self, kind=None):
+    def get_active_datasets(self, kind=None):
         raise NotImplementedError()
-    def persistSamplerState(self, dataset_id, state):
+    def persist_sampler_state(self, dataset_id, state):
         raise NotImplementedError()
-    def getSamplerState(self, dataset_id):
+    def get_sampler_state(self, dataset_id):
         raise NotImplementedError()
-    def persistDataSourceState(self, dataset_id, state):
+    def persist_data_source_state(self, dataset_id, state):
         raise NotImplementedError()
-    def getDataSourceState(self, dataset_id):
+    def get_data_source_state(self, dataset_id):
         raise NotImplementedError()
-    def logIngesterEvent(self, dataset_id, timestamp, level, message):
+    def log_ingester_event(self, dataset_id, timestamp, level, message):
         raise NotImplementedError()
-    def getIngesterEvents(self, dataset_id):
+    def get_ingester_events(self, dataset_id):
         raise NotImplementedError()
-    def findDatasets(self, **kwargs):
+    def find_datasets(self, **kwargs):
         raise NotImplementedError()
-    def persistDataEntry(self, obs, cwd):
+    def persist_data_entry(self, obs, cwd):
         raise NotImplementedError()
-    def getDataEntry(self, dataset_id, data_entry_id):
+    def get_data_entry(self, dataset_id, data_entry_id):
         raise NotImplementedError()
-    def getDataEntryStream(self, dataset_id, data_entry_id, attr):
+    def get_data_entry_stream(self, dataset_id, data_entry_id, attr):
         raise NotImplementedError()
     def search(self, object_type, criteria=None):
         raise NotImplementedError()
