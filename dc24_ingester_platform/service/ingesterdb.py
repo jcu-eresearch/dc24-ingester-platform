@@ -226,6 +226,7 @@ class IngestTask(Base):
     timestamp = Column(DateTime)
     state = Column(Integer, nullable=False, default=0)
     cwd = Column(String, nullable=False)
+    parameters = Column(TEXT)
     
 def dict_to_obj(data):
     """Copies a dict onto an object"""
@@ -762,7 +763,7 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
             
-    def create_ingest_task(self, ds_id, parameters=None, cwd=None):
+    def create_ingest_task(self, ds_id, cwd, parameters=None):
         """Mark the dataset as currently undertaing the ingest process. This
         will also persist the ingest task and return the id for this object."""
         session = orm.sessionmaker(bind=self.engine)()
@@ -776,9 +777,12 @@ class IngesterServiceDB(IIngesterService):
             task.parameters = json.dumps(parameters)
             task.cwd = cwd
             task.state = 0
+            task.timestamp = datetime.datetime.utcnow()
             session.add(task)
             
             session.commit()
+            
+            return task.id
         finally:
             session.close()
     
@@ -817,8 +821,8 @@ class IngesterServiceDB(IIngesterService):
         """
         session = orm.sessionmaker(bind=self.engine)()
         try:
-            ret = session.query(IngestTask).filter(IngestTask.state.in_( (1,2) )).all()
-            return [(dao_to_domain(obj.dataset), json.loads(obj.parameters), obj.id, obj.cwd) for obj in ret]
+            ret = session.query(IngestTask).filter(IngestTask.state.in_( (0,1) )).all()
+            return [(obj.id, obj.state, dao_to_domain(obj.dataset), json.loads(obj.parameters), obj.cwd) for obj in ret]
         finally:
             session.close()
 

@@ -56,7 +56,7 @@ class IngesterEngine(object):
         for dataset in datasets:
             if dataset.running: continue
             if not hasattr(dataset.data_source, "sampling") or dataset.data_source.sampling == None: continue
-            self.processSampler(now, dataset)
+            self.process_sampler(now, dataset)
 
         #self.processQueue()
 
@@ -143,8 +143,8 @@ class IngesterEngine(object):
         is assumed to also persist the queue entry. The queue_id is the identifier
         in the persistent store, so that the queued entry can be cleaned up."""
         cwd = tempfile.mkdtemp(dir=self.staging_dir)
-        queue_id = self.service.create_ingest_task(dataset.id, cwd, parameters)
-        self._queue.put( (dataset, parameters, queue_id, cwd) )
+        task_id = self.service.create_ingest_task(dataset.id, cwd, parameters)
+        self._queue.put( (dataset, parameters, task_id, cwd) )
 
     def enqueue_ingest(self, task_id, ingest_data, cwd):
         """Queue a data entry for ingest into the repository
@@ -173,7 +173,7 @@ class IngesterEngine(object):
         for task_id, state, dataset, parameters, cwd in items:
             if state == 0:
                 # State 0 is ready to ingest
-                self._queue.put( (dataset, parameters, queue_id, cwd) )
+                self._queue.put( (dataset, parameters, task_id, cwd) )
             elif state == 1:
                 # State 1 is ready to ingest
                 try:

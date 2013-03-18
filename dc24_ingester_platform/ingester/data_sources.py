@@ -203,11 +203,11 @@ class DatasetDataSource(DataSource):
         :param cwd: working directory to place binary data
         :returns: dict containing the data to be ingested
         """
-        data_entry = service.getDataEntry(int(self.parameters["dataset"]), int(self.parameters["id"]))
+        data_entry = service.get_data_entry(int(self.parameters["dataset"]), int(self.parameters["id"]))
         for k in data_entry.data:
             if isinstance(data_entry.data[k], FileObject):
                 dst_file = os.path.join(cwd, k)
-                f_in=service.getDataEntryStream(int(self.parameters["dataset"]), int(self.parameters["id"]), k)
+                f_in=service.get_data_entry_stream(int(self.parameters["dataset"]), int(self.parameters["id"]), k)
                 with open(dst_file, "wb") as f_out:
                     shutil.copyfileobj(f_in, f_out)
                 f_in.close()
