@@ -30,6 +30,6 @@ root.putChild("push", push.makePushService(service_facade, os.path.join(tempfile
 service = internet.TCPServer(8080, server.Site(root))
 service.setServiceParent(application)
 
-ingester.startIngester(service_facade, tempfile.gettempdir())
+ingester.start_ingester(service_facade, tempfile.gettempdir())
 
 

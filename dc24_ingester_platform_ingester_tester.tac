@@ -28,6 +28,6 @@ root.putChild("api", mock.makeMockServer(service_facade))
 service = internet.TCPServer(8080, server.Site(root))
 service.setServiceParent(application)
 
-ingester.startIngester(service_facade, tempfile.gettempdir(), mock.data_source_factory)
+ingester.start_ingester(service_facade, tempfile.gettempdir(), mock.data_source_factory)
 
 

@@ -56,16 +56,16 @@ class MockService(IIngesterService):
         self.datasets = {}
         self.listeners = []
         
-    def getDataSourceState(self, dataset_id):
+    def get_data_source_state(self, dataset_id):
         return {}
     
-    def persistDataSourceState(self, dataset_id, state):
+    def persist_data_source_state(self, dataset_id, state):
         return
     
     def getDataset(self, dataset_id):
         return self.datasets[dataset_id]
     
-    def logIngesterEvent(self, dataset_id, timestamp, level, message):
+    def log_ingester_event(self, dataset_id, timestamp, level, message):
         if dataset_id not in self.logs:
             self.logs[dataset_id] = []
         self.logs[dataset_id].append( (timestamp, level, message) )
@@ -75,13 +75,22 @@ class MockService(IIngesterService):
         each of the listeners, without copying or moving anything."""
         if not isinstance(obs, DataEntry): return
         for listener in self.listeners:
-            listener.notifyNewObservation(obs, cwd)
+            listener.notify_new_data_entry(obs, cwd)
 
     def register_observation_listener(self, listener):
         self.listeners.append(listener)
         
-    def getActiveDatasets(self, kind=None):
+    def get_active_datasets(self, kind=None):
         return [ds for ds in self.datasets.values() if ds.enabled==True and (kind==None or ds.data_source != None and ds.data_source.__xmlrpc_class__==kind)]
+
+    def create_ingest_task(self, ds_id, params, cwd):
+        return 0
+
+    def mark_ingress_complete(self, task_id):
+        pass
+
+    def mark_ingest_complete(self, task_id):
+        pass
 
 class MockSource(DataSource):
     pass
@@ -127,10 +136,10 @@ class TestIngesterProcess(unittest.TestCase):
         
         dataset.data_source = datasource
         
-        self.ingester.queue(dataset)
-        self.ingester.processQueue()
+        self.ingester.enqueue(dataset)
+        self.ingester.process_ingress_queue(True)
         
-        self.assertEquals(1, len(self.ingester._ingest_queue))
+        self.assertEquals(1, self.ingester._ingest_queue.qsize())
         
     def testPostProcessScript(self):
         """This test performs a complex data ingest, where the main data goes into dataset 1 and 
@@ -157,10 +166,10 @@ def process(cwd, data_entry):
         dataset.data_source = _DataSource(processing_script = script)
         dataset.data_source.__xmlrpc_class__ = "csv1"
         
-        self.ingester.queue( dataset )
-        self.ingester.processQueue()
-        self.assertEquals(1, len(self.ingester._ingest_queue))
-        self.assertEquals(2, len(self.ingester._ingest_queue[0][0]))
+        self.ingester.enqueue( dataset )
+        self.ingester.process_ingress_queue(True)
+        self.assertEquals(1, self.ingester._ingest_queue.qsize())
+        self.assertEquals(2, len(self.ingester._ingest_queue.get()[1]))
         
         
     def testComplexIngest(self):
@@ -193,13 +202,13 @@ def process(cwd, data_entry):
         self.service.datasets[1] = dataset
         self.service.datasets[2] = dataset2
         
-        self.ingester.queue( dataset )
-        self.ingester.processQueue()
-        self.assertEquals(1, len(self.ingester._ingest_queue))
+        self.ingester.enqueue( dataset )
+        self.ingester.process_ingress_queue(True)
+        self.assertEquals(1, self.ingester._ingest_queue.qsize())
         
-        self.ingester.processIngestQueue()
+        self.ingester.process_ingest_queue(True)
         
-        self.assertEquals(1, len(self.ingester._queue), "There should be one item from the notification")
+        self.assertEquals(1, self.ingester._queue.qsize(), "There should be one item from the notification")
         
         # This should read the data that was copied over
 # FIXME probably the wrong place for this test as it requires a proper repo service
@@ -223,10 +232,10 @@ def process(cwd, data_entry):
         dataset.id = 1
         dataset.data_source = PushDataSource(path=staging)
         
-        self.ingester.queue(dataset)
-        self.ingester.processQueue()
+        self.ingester.enqueue(dataset)
+        self.ingester.process_ingress_queue(True)
         
-        self.assertEquals(1, len(self.ingester._ingest_queue))
+        self.assertEquals(1, self.ingester._ingest_queue.qsize())
         
         # Check there are now no files
         self.assertEquals(0, len(os.listdir(staging)))

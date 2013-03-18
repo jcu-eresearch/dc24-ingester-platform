@@ -52,33 +52,37 @@ class MockService(IIngesterService):
     def unregister_observation_listener(self, listener):
         self.obs_listeners.remove(listener)
         
-    def persistSamplerState(self, ds_id, state):
+    def persist_sampler_state(self, ds_id, state):
         self.sampler_state[ds_id] = state
     
-    def getSamplerState(self, ds_id):
+    def get_sampler_state(self, ds_id):
         return self.sampler_state[ds_id] if ds_id in self.sampler_state else {}
 
-    def persistDataSourceState(self, ds_id, state):
+    def persist_data_source_state(self, ds_id, state):
         self.data_source_state[ds_id] = state
 
-    def getDataSourceState(self, ds_id):
+    def get_data_source_state(self, ds_id):
         return self.data_source_state[ds_id] if ds_id in self.data_source_state else {}
     
-    def getActiveDatasets(self):
+    def get_active_datasets(self):
         return self.datasets
     
-    def logIngesterEvent(self, dataset_id, timestamp, level, message):
+    def log_ingester_event(self, dataset_id, timestamp, level, message):
         logger.info("[%s] %s"%(level, message))
         return
     
     def persist(self, entry, cwd):
         logger.info("Got entry: "+str(entry))
         
-    def markRunning(self, ds_id):
+    def create_ingest_task(self, ds_id, params, cwd):
         self.datasets[0].running = True
+        return 0
         
-    def markNotRunning(self, ds_id):
+    def mark_ingress_complete(self, task_id):
         self.datasets[0].running = False
+
+    def mark_ingest_complete(self, task_id):
+        pass
         
 class MockServer(xmlrpc.XMLRPC):
     def __init__(self, service):

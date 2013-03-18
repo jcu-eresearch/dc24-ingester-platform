@@ -171,34 +171,34 @@ class TestServiceModels(unittest.TestCase):
 
     def test_state_persistence(self):
         """Test that the state of samplers and data sources can be persisted."""
-        sampler_state = self.service.getSamplerState(1)
+        sampler_state = self.service.get_sampler_state(1)
         self.assertEquals(0, len(sampler_state))
-        self.service.persistSamplerState(1, {"test":"abc","test2":123})
-        sampler_state = self.service.getSamplerState(1)
+        self.service.persist_sampler_state(1, {"test":"abc","test2":123})
+        sampler_state = self.service.get_sampler_state(1)
         self.assertEquals(2, len(sampler_state))
         self.assertEquals("abc", sampler_state["test"])
         self.assertEquals("123", sampler_state["test2"])
         
         del sampler_state["test"]
         sampler_state["test2"] = "xyz"
-        self.service.persistSamplerState(1, sampler_state)
-        sampler_state = self.service.getSamplerState(1)
+        self.service.persist_sampler_state(1, sampler_state)
+        sampler_state = self.service.get_sampler_state(1)
         self.assertEquals(1, len(sampler_state))
         self.assertEquals("xyz", sampler_state["test2"])
         
         # Now test the same thing on the data source state
-        data_source_state = self.service.getDataSourceState(1)
+        data_source_state = self.service.get_data_source_state(1)
         self.assertEquals(0, len(data_source_state))
-        self.service.persistDataSourceState(1, {"test":"abc","test2":123})
-        data_source_state = self.service.getDataSourceState(1)
+        self.service.persist_data_source_state(1, {"test":"abc","test2":123})
+        data_source_state = self.service.get_data_source_state(1)
         self.assertEquals(2, len(data_source_state))
         self.assertEquals("abc", data_source_state["test"])
         self.assertEquals("123", data_source_state["test2"])
         
         del data_source_state["test"]
         data_source_state["test2"] = "xyz"
-        self.service.persistDataSourceState(1, data_source_state)
-        data_source_state = self.service.getDataSourceState(1)
+        self.service.persist_data_source_state(1, data_source_state)
+        data_source_state = self.service.get_data_source_state(1)
         self.assertEquals(1, len(data_source_state))
         self.assertEquals("xyz", data_source_state["test2"])
                 

@@ -33,6 +33,7 @@ Base = declarative_base()
 
 domain_marshaller = Marshaller()
 
+# FIXME remove this method and use the main marshaller instead
 def obj_to_dict(obj, klass=None):
     """Maps an object of base class BaseManagementObject to a dict.
     """
@@ -330,7 +331,7 @@ def dao_to_domain(dao):
     if type(dao) == Region:
         domain = jcudc24ingesterapi.models.locations.Region()
         copy_attrs(dao, domain, ["id", "version", "name"])
-        domain.region_points = [(p.latitude, p.longitude) for p in dao.region_points]
+        domain.region_points = [(float(p.latitude), float(p.longitude)) for p in dao.region_points]
     elif type(dao) == Schema:
         domain = domain_marshaller.class_for(dao.for_ + "_schema")()
         
@@ -752,8 +753,9 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
             
-    def markRunning(self, ds_id):
-        """Enable the dataset"""
+    def create_ingest_task(self, ds_id, parameters=None, cwd=None):
+        """Mark the dataset as currently undertaing the ingest process. This
+        will also persist the ingest task and return the id for this object."""
         session = orm.sessionmaker(bind=self.engine)()
         try:
             obj = session.query(Dataset).filter(Dataset.id == ds_id).one()
@@ -763,8 +765,9 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
     
-    def markNotRunning(self, ds_id):
-        """Disable the dataset"""
+    def mark_ingress_complete(self, ingest_task_id):
+        """Once the ingress is complete the dataset is able to ingress new data
+        without conflict"""
         session = orm.sessionmaker(bind=self.engine)()
         try:
             obj = session.query(Dataset).filter(Dataset.id == ds_id).one()
@@ -774,6 +777,16 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
         
+    def mark_ingest_complete(self, ingest_task_id):
+        """Once the ingest is complete the ingest process is complete"""
+        pass
+
+    
+    def get_ingest_queue(self):
+        """Get all the items queued for ingest.
+        :returns: List of tuples (task_id, state, dataset object, parameter dict, cwd)
+        """
+
     def getActiveDatasets(self, kind=None):
         """Returns all enabled datasets."""
         s = orm.sessionmaker(bind=self.engine)()
@@ -814,7 +827,10 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
 
-    def logIngesterEvent(self, dataset_id, timestamp, level, message):
+    def log_ingester_event(self, dataset_id, timestamp, level, message):
+        """Write a database log entry for an event that occured on a dataset ingest task
+        :param dataset_id: id of the dataset the ingest even was occuring on
+        """
         s = orm.sessionmaker(bind=self.engine)()
         try:
             log = IngesterLog()
@@ -829,6 +845,7 @@ class IngesterServiceDB(IIngesterService):
             s.close()
     
     def getIngesterEvents(self, dataset_id):
+        """Returns a list of all events that have occurred on a given dataset"""
         s = orm.sessionmaker(bind=self.engine)()
         try:
             objs = s.query(IngesterLog).filter(IngesterLog.dataset_id == dataset_id).all()
@@ -839,7 +856,7 @@ class IngesterServiceDB(IIngesterService):
         finally:
             s.close()
             
-    def persistSamplerState(self, ds_id, state):
+    def persist_sampler_state(self, ds_id, state):
         session = orm.sessionmaker(bind=self.engine)()
         try:
             objs = session.query(SamplerState).filter(SamplerState.dataset_id == ds_id).all()
@@ -871,7 +888,7 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
     
-    def getSamplerState(self, ds_id):
+    def get_sampler_state(self, ds_id):
         """Gets the sampler state as a dict. All values will be string."""
         session = orm.sessionmaker(bind=self.engine)()
         try:
@@ -880,7 +897,7 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
 
-    def persistDataSourceState(self, ds_id, state):
+    def persist_data_source_state(self, ds_id, state):
         session = orm.sessionmaker(bind=self.engine)()
         try:
             objs = session.query(DataSourceState).filter(DataSourceState.dataset_id == ds_id).all()
@@ -912,7 +929,7 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
 
-    def getDataSourceState(self, ds_id):
+    def get_data_source_state(self, ds_id):
         """Gets the data source state as a dict. All values will be string."""
         session = orm.sessionmaker(bind=self.engine)()
         try:
@@ -962,7 +979,7 @@ class IngesterServiceDB(IIngesterService):
 
         obs = self.repo.persistDataEntry(dataset, schema, data_entry, cwd)
         for listener in self.obs_listeners:
-            listener.notifyNewObservation(obs, cwd)
+            listener.notify_new_data_entry(obs, cwd)
         return obs
 
     def runIngester(self, d_id):
@@ -1007,8 +1024,8 @@ class IngesterServiceDB(IIngesterService):
                 ret_list.append(dao_to_domain(obj))
             return ret_list
         finally:
-            s.close()
-    
+            s.close() 
+
     def save_version(self, session, obj):
         """Save a JSON encoded copy of the original object before updating. 
         This method will put the save in the transaction, so that if the transction
