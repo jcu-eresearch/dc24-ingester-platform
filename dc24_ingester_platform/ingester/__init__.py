@@ -169,6 +169,7 @@ class IngesterEngine(object):
     def load_running(self):
         """Load any persisted ingress and ingest tasks"""
         items = self.service.get_ingest_queue()
+        logger.info("Loading %d items into queue"%len(items))
         for task_id, state, dataset, parameters, cwd in items:
             if state == 0:
                 # State 0 is ready to ingest
@@ -191,6 +192,9 @@ def start_ingester(service, staging_dir, data_source_factory=create_data_source)
     :param staging_dir: the folder that will hold all the staging data
     """
     ingester = IngesterEngine(service, staging_dir, data_source_factory)
+    ingester.load_running()
+    
+    # Start the sampler loop
     lc = LoopingCall(ingester.process_samplers)
     lc.start(15, False)
     

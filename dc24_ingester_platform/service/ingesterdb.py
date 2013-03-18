@@ -218,6 +218,15 @@ class ObjectHistory(Base):
     data = Column(TEXT)
     timestamp = Column(DateTime)
     
+class IngestTask(Base):
+    __tablename__ = "INGEST_TASK"
+    id = Column(Integer, primary_key=True)
+    dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
+    dataset = orm.relationship("Dataset", uselist=False)
+    timestamp = Column(DateTime)
+    state = Column(Integer, nullable=False, default=0)
+    cwd = Column(String, nullable=False)
+    
 def dict_to_obj(data):
     """Copies a dict onto an object"""
     obj = object()
@@ -469,9 +478,9 @@ class IngesterServiceDB(IIngesterService):
                     obj.correlationid = oid
                     ret.append(obj)
             for obj_id in unit._to_enable:
-                self.enableDataset(obj_id)
+                self.enable_dataset(obj_id)
             for obj_id in unit._to_disable:
-                self.disableDataset(obj_id)
+                self.disable_dataset(obj_id)
             s.commit()
             return ret
         except Exception as e:
@@ -761,6 +770,14 @@ class IngesterServiceDB(IIngesterService):
             obj = session.query(Dataset).filter(Dataset.id == ds_id).one()
             obj.running = True
             session.merge(obj)
+
+            task = IngestTask()
+            task.dataset_id = ds_id
+            task.parameters = json.dumps(parameters)
+            task.cwd = cwd
+            task.state = 0
+            session.add(task)
+            
             session.commit()
         finally:
             session.close()
@@ -770,22 +787,40 @@ class IngesterServiceDB(IIngesterService):
         without conflict"""
         session = orm.sessionmaker(bind=self.engine)()
         try:
-            obj = session.query(Dataset).filter(Dataset.id == ds_id).one()
+            task = session.query(IngestTask).filter(IngestTask.id == ingest_task_id).one()
+            task.state = 1
+            session.merge(task)
+            
+            obj = session.query(Dataset).filter(Dataset.id == task.dataset_id).one()
             obj.running = False
             session.merge(obj)
+            
             session.commit()
         finally:
             session.close()
         
     def mark_ingest_complete(self, ingest_task_id):
         """Once the ingest is complete the ingest process is complete"""
-        pass
-
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            task = session.query(IngestTask).filter(IngestTask.id == ingest_task_id).one()
+            task.state = 2
+            session.merge(task)
+            
+            session.commit()
+        finally:
+            session.close()
     
     def get_ingest_queue(self):
         """Get all the items queued for ingest.
         :returns: List of tuples (task_id, state, dataset object, parameter dict, cwd)
         """
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            ret = session.query(IngestTask).filter(IngestTask.state.in_( (1,2) )).all()
+            return [(dao_to_domain(obj.dataset), json.loads(obj.parameters), obj.id, obj.cwd) for obj in ret]
+        finally:
+            session.close()
 
     def get_active_datasets(self, kind=None):
         """Returns all enabled datasets."""
@@ -991,7 +1026,7 @@ class IngesterServiceDB(IIngesterService):
         dataset_id = dataset_metadata.object_id
         dataset = self.get_dataset(dataset_id)
         schema = self.get_schema(dataset_metadata.metadata_schema)
-        return self.repo.persistDatasetMetadata(dataset, schema, dataset_metadata.data, cwd)
+        return self.repo.persist_dataset_metadata(dataset, schema, dataset_metadata.data, cwd)
 
     @method("persist", "data_entry_metadata_entry")
     def persist_data_entry_metadata(self, data_entry_metadata, session, cwd):
