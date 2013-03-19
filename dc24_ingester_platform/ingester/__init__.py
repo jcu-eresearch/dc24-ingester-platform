@@ -36,7 +36,7 @@ class IngesterEngine(object):
         self.staging_dir = staging_dir
         if not os.path.exists(self.staging_dir): os.makedirs(self.staging_dir)
         self._queue = Queue.Queue()
-        self._ingest_queue = Queue.Queue()
+        self._archive_queue = Queue.Queue()
         self._data_source_factory = data_source_factory
         self.running = True
         self.domain_marshaller = Marshaller()
@@ -119,7 +119,7 @@ class IngesterEngine(object):
                 traceback.print_tb(exc_traceback)
                 self.service.log_ingester_event(dataset.id, datetime.datetime.now(), "ERROR", str(e))
   
-    def process_ingest_queue(self, single_pass=False):
+    def process_archive_queue(self, single_pass=False):
         """Process one entry in the ingest queue. 
         Each element in the queue may be many data entries, from the same data source.
         """
@@ -128,7 +128,7 @@ class IngesterEngine(object):
             if single_pass:
                 running = False
             try:
-                task_id, entries, cwd = self._ingest_queue.get(True, 5)
+                task_id, entries, cwd = self._archive_queue.get(True, 5)
             except Queue.Empty:
                 continue
     
@@ -152,7 +152,7 @@ class IngesterEngine(object):
         :param ingest_data: the data entries to be ingested
         :param cwd: the working directory for these data entries
         """
-        self._ingest_queue.put((task_id, ingest_data, cwd))
+        self._archive_queue.put((task_id, ingest_data, cwd))
         
     def notify_new_data_entry(self, obs, cwd):
         """Notification of new data. On return it is expected that the cwd will be
@@ -168,7 +168,7 @@ class IngesterEngine(object):
         
     def load_running(self):
         """Load any persisted ingress and ingest tasks"""
-        items = self.service.get_ingest_queue()
+        items = self.service.get_archive_queue()
         logger.info("Loading %d items into queue"%len(items))
         for task_id, state, dataset, parameters, cwd in items:
             if state == 0:
@@ -200,7 +200,7 @@ def start_ingester(service, staging_dir, data_source_factory=create_data_source)
     
     from twisted.internet import reactor
     reactor.callInThread(ingester.process_ingress_queue)
-    reactor.callInThread(ingester.process_ingest_queue)
+    reactor.callInThread(ingester.process_archive_queue)
     reactor.addSystemEventTrigger("before", "shutdown", lambda : ingester.shutdown())
 
     return ingester
