@@ -23,7 +23,8 @@ setup(name='jcu.dc24.ingesterplatform',
       install_requires=requires,
       entry_points={
           "console_scripts": ["mgmt_client = dc24_ingester_platform.client:main",
-          "run_ingester = dc24_ingester_platform.ingester.data_sources:main"]
+          "run_ingester = dc24_ingester_platform.ingester.data_sources:main_ingress",
+          "run_script = dc24_ingester_platform.ingester.data_sources:main_script"]
       },
 )
 #      package_data={'twisted.plugins': ['twisted/plugins/dc24_ingester_platform.py']},
