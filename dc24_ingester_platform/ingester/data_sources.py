@@ -306,7 +306,7 @@ def create_data_source(data_source_config, state, parameters):
         raise NoSuchDataSource("Sampler '%s' not found"%(data_source_config.__xmlrpc_class__))
     return data_sources[data_source_config.__xmlrpc_class__](state, parameters, data_source_config)
 
-def main():
+def main_ingress():
     ch = logging.StreamHandler(stream=sys.stdout)
     ch.setLevel(logging.DEBUG)
 
@@ -355,6 +355,68 @@ def main():
     data_source = create_data_source(data_source_do, cfg["state"], cfg["parameters"])
 
     results = data_source.fetch(cwd)
+    print "Initial results"
+    print "---------------"
+    for result in results:
+        print str(result)
+        
+    if script != None:
+        with open(script) as f:
+            script = f.read()
+        results = run_script(script, cwd, results)
+        
+        print "Processed results"
+        print "-----------------"
+        for result in results:
+            print str(result)
+
+    with open(cfg_file, "wb") as _cfg: json.dump(cfg, _cfg)
+    return 0
+    
+def main_script():
+    ch = logging.StreamHandler(stream=sys.stdout)
+    ch.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    ch.setFormatter(formatter)
+    logger.root.addHandler(ch)
+    logger.root.setLevel(logging.DEBUG)
+
+    args = sys.argv
+    if len(args) not in (3,4):
+        print "Usage: %s <entries file> <working directory> [script]"%(args[0])
+        print """Where config file contains:
+        [{
+        "timestamp":"2012-01-02T02:00:00.000Z",
+        "class":"data_entry",
+        "data":[{"class":"file_object","mime_type":"text/plain","file_name":"test"}],
+        }]"""
+        return(1)
+    
+    entries_file = args[1]
+    cwd = args[2]
+    
+    script = args[3] if len(args) > 3 else None
+    
+    # Validate parameters
+    if not os.path.exists(entries_file):
+        print "Config file not found: %s"%(entries_file)
+        return(1) 
+    if not os.path.exists(cwd) and os.path.isdir(cwd):
+        print "Working directory does not exist"
+        return(1)
+    with open(sys.argv[1], "r") as f:
+        cfg = json.load(f)
+    if "class" not in cfg or "state" not in cfg or "parameters" not in cfg or "config" not in cfg:
+        print "Config file not valid"
+        return(1)
+    
+    # Create config object
+    m = Marshaller()
+    with open(entries_file) as f:
+        results = json.load(f)
+        results = m.dict_to_obj(results)
+
     print "Initial results"
     print "---------------"
     for result in results:
