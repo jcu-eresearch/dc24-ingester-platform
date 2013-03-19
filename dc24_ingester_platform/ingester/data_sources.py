@@ -386,11 +386,16 @@ def main_script():
     if len(args) not in (3,4):
         print "Usage: %s <entries file> <working directory> [script]"%(args[0])
         print """Where config file contains:
-        [{
-        "timestamp":"2012-01-02T02:00:00.000Z",
-        "class":"data_entry",
-        "data":[{"class":"file_object","mime_type":"text/plain","file_name":"test"}],
-        }]"""
+        [
+{'class': 'data_entry',
+ 'data': {'file1': {'class': 'file_object',
+   'file_name': None,
+   'mime_type': None}},
+ 'dataset': None,
+ 'id': None,
+ 'location_offset': None,
+ 'timestamp': '2013-03-20T09:13:41.567Z'}
+        ]"""
         return(1)
     
     entries_file = args[1]
