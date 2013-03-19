@@ -383,8 +383,8 @@ def main_script():
     logger.root.setLevel(logging.DEBUG)
 
     args = sys.argv
-    if len(args) not in (3,4):
-        print "Usage: %s <entries file> <working directory> [script]"%(args[0])
+    if len(args) not in (4):
+        print "Usage: %s <entries file> <working directory> <script>"%(args[0])
         print """Where config file contains:
         [
 {'class': 'data_entry',
@@ -401,7 +401,7 @@ def main_script():
     entries_file = args[1]
     cwd = args[2]
     
-    script = args[3] if len(args) > 3 else None
+    script = args[3]
     
     # Validate parameters
     if not os.path.exists(entries_file):
