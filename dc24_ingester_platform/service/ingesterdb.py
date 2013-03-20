@@ -841,7 +841,7 @@ class IngesterServiceDB(IIngesterService):
         finally:
             s.close()
     
-    def get_ingester_events(self, dataset_id):
+    def get_ingester_logs(self, dataset_id):
         """Returns a list of all events that have occurred on a given dataset"""
         s = orm.sessionmaker(bind=self.engine)()
         try:

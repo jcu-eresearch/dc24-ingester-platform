@@ -49,7 +49,7 @@ class IIngesterService(object):
         raise NotImplementedError()
     def log_ingester_event(self, dataset_id, timestamp, level, message):
         raise NotImplementedError()
-    def get_ingester_events(self, dataset_id):
+    def get_ingester_logs(self, dataset_id):
         raise NotImplementedError()
     def find_datasets(self, **kwargs):
         raise NotImplementedError()
