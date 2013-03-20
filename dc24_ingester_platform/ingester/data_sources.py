@@ -383,8 +383,8 @@ def main_script():
     logger.root.setLevel(logging.DEBUG)
 
     args = sys.argv
-    if len(args) not in (4):
-        print "Usage: %s <entries file> <working directory> <script>"%(args[0])
+    if len(args) not in (4,):
+        print "Usage: %s <entries file> <working directory> <script>" % (args[0])
         print """Where config file contains:
         [
 {'class': 'data_entry',
@@ -412,10 +412,7 @@ def main_script():
         return(1)
     with open(sys.argv[1], "r") as f:
         cfg = json.load(f)
-    if "class" not in cfg or "state" not in cfg or "parameters" not in cfg or "config" not in cfg:
-        print "Config file not valid"
-        return(1)
-    
+
     # Create config object
     m = Marshaller()
     with open(entries_file) as f:
@@ -437,8 +434,7 @@ def main_script():
         for result in results:
             print str(result)
 
-    with open(cfg_file, "wb") as _cfg: json.dump(cfg, _cfg)
     return 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main_ingress())
