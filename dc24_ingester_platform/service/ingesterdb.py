@@ -522,7 +522,7 @@ class IngesterServiceDB(IIngesterService):
             if ds.data_source.sampling != None:
                 ds.data_source.sampling.kind = dataset.data_source.sampling.__xmlrpc_class__
                 merge_parameters(dataset.data_source.sampling, ds.data_source.sampling.parameters, SamplingParameter)
-                    
+                
 #        # Clean up the sampling link
 #        if ds.sampling == None and sampling != None:
 #            ds.sampling = Sampling()
@@ -947,8 +947,8 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
 
-    def find_data_entries(self, d_id):
-        return self.repo.find_data_entries(self.get_dataset(d_id))
+    def find_data_entries(self, dataset_id):
+        return self.repo.find_data_entries(self.get_dataset(dataset_id))
 
     def get_data_entry(self, dataset_id, data_entry_id):
         return self.repo.get_data_entry(dataset_id, data_entry_id)
@@ -979,9 +979,12 @@ class IngesterServiceDB(IIngesterService):
             listener.notify_new_data_entry(obs, cwd)
         return obs
 
-    def runIngester(self, d_id):
-        """Run the ingester for the given dataset ID"""
-        self.ingester.queue(self.get_dataset(d_id))
+    def invoke_ingester(self, dataset_id):
+        """Run the ingester for the given dataset ID. 
+        If this is a scheduled dataset then this will be as if the sampler had
+        run. But, if it is a dataset data source then we'll go and get all
+        the data entries in the source dataset."""
+        self.ingester.invoke_ingester(self.get_dataset(dataset_id))
 
     @method("persist", "dataset_metadata_entry")
     def persist_dataset_metadata(self, dataset_metadata, session, cwd):

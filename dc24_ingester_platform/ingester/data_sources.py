@@ -410,8 +410,6 @@ def main_script():
     if not os.path.exists(cwd) and os.path.isdir(cwd):
         print "Working directory does not exist"
         return(1)
-    with open(sys.argv[1], "r") as f:
-        cfg = json.load(f)
 
     # Create config object
     m = Marshaller()

@@ -193,11 +193,11 @@ class ManagementService(xmlrpc.XMLRPC):
         except IngestPlatformError, e:
             raise translate_exception(e)
         
-    def xmlrpc_runIngester(self, dataset_id):
+    def xmlrpc_invokeIngester(self, dataset_id):
         """Disable ingestion of a dataset.
         """
         try:
-            return self.service.run_ingester(dataset_id)
+            return self.service.invoke_ingester(dataset_id)
         except ValueError, e:
             raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:

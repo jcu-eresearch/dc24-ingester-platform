@@ -53,6 +53,8 @@ class IIngesterService(object):
         raise NotImplementedError()
     def find_datasets(self, **kwargs):
         raise NotImplementedError()
+    def find_data_entries(self, **kwargs):
+        raise NotImplementedError()
     def persist_data_entry(self, obs, cwd):
         raise NotImplementedError()
     def get_data_entry(self, dataset_id, data_entry_id):
