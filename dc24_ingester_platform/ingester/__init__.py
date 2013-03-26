@@ -16,6 +16,7 @@ import time
 import shutil
 import json
 import Queue
+import traceback
 
 from processor import *
 from dc24_ingester_platform.utils import *
@@ -23,9 +24,10 @@ from twisted.internet.task import LoopingCall
 from dc24_ingester_platform.ingester.sampling import create_sampler
 from dc24_ingester_platform.ingester.data_sources import create_data_source
 from jcudc24ingesterapi.ingester_platform_api import Marshaller
-import traceback
+from jcudc24ingesterapi.models.data_sources import DatasetDataSource
+from jcudc24ingesterapi.ingester_exceptions import InvalidObjectError, OperationFailedException
 
-logger = logging.getLogger("dc24_ingester_platform")
+logger = logging.getLogger("dc24_ingester_platfor.ingester")
 
 class IngesterEngine(object):
     def __init__(self, service, staging_dir, data_source_factory):
@@ -72,7 +74,7 @@ class IngesterEngine(object):
             sampler = create_sampler(dataset.data_source.sampling, state)
             self.service.persist_sampler_state(dataset.id, sampler.state)
             if sampler.sample(now, dataset):
-                self.enqueue(dataset)
+                self.enqueue_ingress(dataset)
         except Exception, e:
             logger.error("DATASET.id=%d: %s"%(dataset.id,str(e)))
             exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -101,14 +103,20 @@ class IngesterEngine(object):
                 if hasattr(data_source, "processing_script") and data_source.processing_script != None:
                     data_entries = run_script(data_source.processing_script, cwd, data_entries)
                 
-                for entry in data_entries:
-                    entry.dataset = dataset.id
-                # Write entries to disk so we can recover later
-                with open(os.path.join(cwd, "ingest.json"), "w") as f:
-                    json.dump(self.domain_marshaller.obj_to_dict(data_entries), f)
-
+                if isinstance(data_entries, list):
+                    for entry in data_entries:
+                        entry.dataset = dataset.id
+                        
+                    # Write entries to disk so we can recover later
+                    entries_file = "ingest.json"
+                    with open(os.path.join(cwd, entries_file), "w") as f:
+                        json.dump(self.domain_marshaller.obj_to_dict(data_entries), f)
+                    
+                else:
+                    entries_file = data_entries
+                
                 # Now queue for ingest
-                self.enqueue_ingest(task_id, data_entries, cwd)
+                self.enqueue_archive(task_id, entries_file, cwd)
                 
                 self.service.persist_data_source_state(dataset.id, data_source.state)
                 self.service.mark_ingress_complete(task_id)
@@ -138,7 +146,7 @@ class IngesterEngine(object):
             self.service.mark_ingest_complete(task_id)
             shutil.rmtree(cwd)
   
-    def enqueue(self, dataset, parameters=None):
+    def enqueue_ingress(self, dataset, parameters=None):
         """Enqueue the dataset for ingress and processing ASAP. The markRunning method
         is assumed to also persist the queue entry. The queue_id is the identifier
         in the persistent store, so that the queued entry can be cleaned up."""
@@ -146,7 +154,7 @@ class IngesterEngine(object):
         task_id = self.service.create_ingest_task(dataset.id, cwd, parameters)
         self._queue.put( (dataset, parameters, task_id, cwd) )
 
-    def enqueue_ingest(self, task_id, ingest_data, cwd):
+    def enqueue_archive(self, task_id, ingest_data, cwd):
         """Queue a data entry for ingest into the repository
         :param task_id: the ID given to the ingest process task
         :param ingest_data: the data entries to be ingested
@@ -154,25 +162,25 @@ class IngesterEngine(object):
         """
         self._archive_queue.put((task_id, ingest_data, cwd))
         
-    def notify_new_data_entry(self, obs, cwd):
+    def notify_new_data_entry(self, data_entry, cwd):
         """Notification of new data. On return it is expected that the cwd will be
         cleaned up, so any data that is required should be copied.
-        :param obs: DataEntry object that is triggering
+        :param data_entry: DataEntry object that is triggering
         :param cwd: the working directory for the data entry
         """
         datasets = self.service.get_active_datasets(kind="dataset_data_source")
-        datasets = [ds for ds in datasets if ds.data_source.dataset_id==obs.dataset]
+        datasets = [ds for ds in datasets if ds.data_source.dataset_id==data_entry.dataset]
         logger.info("Notified of new observation, telling %d listeners"%(len(datasets)))
         for dataset in datasets:
-            self.enqueue(dataset, {"dataset":obs.dataset, "id":obs.id})
+            self.enqueue(dataset, {"dataset":data_entry.dataset, "id":data_entry.id})
         
-    def load_running(self):
-        """Load any persisted ingress and ingest tasks"""
-        items = self.service.get_archive_queue()
+    def restore_running(self):
+        """Load any persisted ingress and archive tasks"""
+        items = self.service.get_ingest_queue()
         logger.info("Loading %d items into queue"%len(items))
         for task_id, state, dataset, parameters, cwd in items:
             if state == 0:
-                # State 0 is ready to ingest
+                # State 0 is ready to ingress
                 self._queue.put( (dataset, parameters, task_id, cwd) )
             elif state == 1:
                 # State 1 is ready to ingest
@@ -185,6 +193,28 @@ class IngesterEngine(object):
             else:
                 logger.error("Unknown state %d for task %d"%(state, task_id))
 
+    def invoke_ingester(self, dataset):
+        """Invoke the specified ingester"""
+        if not isinstance(dataset, Dataset):
+            raise InvalidObjectError("The object is not a dataset")
+        if dataset.data_source == None:
+            raise InvalidObjectError("The provided dataset has no data source")
+            
+        if hasattr(dataset.data_source, "sampling") and dataset.data_source.sampling != None:
+            # If the dataset has sampling then test if it is running and then run
+            if dataset.running:
+                raise OperationFailedException("The dataset is already running")
+            self.enqueue_ingress(dataset)
+        elif isinstance(dataset.data_source, DatasetDataSource):
+            # If this is a dataset data source then enqueue all of the parent items            
+            dataset_id = dataset.data_source.dataset_id
+            data_entries =  self.service.find_data_entries(dataset_id=dataset_id)
+            for data_entry in data_entries:
+                self.enqueue(dataset, {"dataset":data_entry.dataset, "id":data_entry.id})
+            
+        else:
+            raise OperationFailedException("The dataset has no ingester to run")
+
 def start_ingester(service, staging_dir, data_source_factory=create_data_source):
     """Setup and start the ingester loop.
     
@@ -192,7 +222,7 @@ def start_ingester(service, staging_dir, data_source_factory=create_data_source)
     :param staging_dir: the folder that will hold all the staging data
     """
     ingester = IngesterEngine(service, staging_dir, data_source_factory)
-    ingester.load_running()
+    ingester.restore_running()
     
     # Start the sampler loop
     lc = LoopingCall(ingester.process_samplers)

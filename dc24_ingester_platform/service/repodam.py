@@ -187,4 +187,24 @@ class RepositoryDAM(BaseRepositoryService):
         repo = self.connection()
         return repo.retrieve_attribute(data_entry_id, attr, close_connection=True)
     
-    
+    def find_data_entries(self, dataset_id):
+        with self.connection() as repo:
+            dam_objs = repo.retrieve_tuples("data", dataset=dataset_id)
+        ret = []
+        for dam_obj in dam_objs:
+            data_entry = DataEntry()
+            data_entry.id = dam_obj["metadata"]["id"]
+            data_entry.dataset = dataset_id
+            data_entry.timestamp = parse_timestamp(dam_obj["metadata"]["time"])
+            for attr in dam_obj["data"]:
+                if "size" in attr:
+                    fo = FileObject()
+                    fo.f_name = attr["name"]
+                    fo.mime_type = attr["mimeType"]
+                    fo.file_name = attr["originalFileName"]
+                    data_entry.data[attr["name"]] = fo
+                else:
+                    data_entry.data[attr["name"]] = attr["value"]
+            ret.append(data_entry)
+        return ret
+
