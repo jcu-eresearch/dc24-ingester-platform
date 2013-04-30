@@ -301,7 +301,7 @@ def dao_to_domain(dao):
         domain = domain_marshaller.class_for(dao.for_ + "_schema")()
         
         copy_attrs(dao, domain, ["id", "version", "name", "repository_id"])
-        domain.extends.extend(dao.extends)
+        domain.extends.extend([e.id for e in dao.extends])
         for attr in dao.attributes:
             attr_ = None
             if attr.kind == "file": attr_ = jcudc24ingesterapi.schemas.data_types.FileDataType(attr.name)
