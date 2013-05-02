@@ -19,6 +19,7 @@ import jcudc24ingesterapi.models.locations
 import jcudc24ingesterapi.models.system
 import jcudc24ingesterapi.models.dataset
 import jcudc24ingesterapi.schemas.data_types
+from jcudc24ingesterapi.schemas import ConcreteSchema
 from jcudc24ingesterapi.models.locations import LocationOffset
 from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
 import datetime
@@ -815,6 +816,25 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
             
+    def get_schema_tree(self, s_id):
+        """Get the schema as a DTO"""
+        session = orm.sessionmaker(bind=self.engine)()
+        queue = [s_id]
+        ret = []
+        try:
+            while len(queue):
+                s_id = queue[0]
+                del queue[0]
+                
+                obj = session.query(Schema).filter(Schema.id == s_id).one()
+                schema = dao_to_domain(obj)
+                ret.append(schema)
+                for extends in schema.extends:
+                    queue.append(extends)
+            return ret
+        finally:
+            session.close()
+            
     def get_location(self, loc_id):
         """Get the location as a DTO"""
         session = orm.sessionmaker(bind=self.engine)()
@@ -969,11 +989,11 @@ class IngesterServiceDB(IIngesterService):
         """
         if data_entry.timestamp == None: 
             raise ValueError("timestamp is not set")
-
+        
         dataset_id = data_entry.dataset
         dataset = self.get_dataset(dataset_id)
-        schema = self.get_schema(dataset.schema)
-
+        schema = ConcreteSchema(self.get_schema_tree(dataset.schema))
+        logger.info("concrete schema")
         obs = self.repo.persist_data_entry(dataset, schema, data_entry, cwd)
         for listener in self.obs_listeners:
             listener.notify_new_data_entry(obs, cwd)

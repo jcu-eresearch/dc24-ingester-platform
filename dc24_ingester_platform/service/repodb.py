@@ -17,6 +17,7 @@ import shutil
 from jcudc24ingesterapi.schemas.data_types import FileDataType
 from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
 from jcudc24ingesterapi.models.metadata import DatasetMetadataEntry, DataEntryMetadataEntry
+from jcudc24ingesterapi.schemas import ConcreteSchema
 
 logger = logging.getLogger(__name__)
 
@@ -194,7 +195,7 @@ class RepositoryDB(BaseRepositoryService):
         obs = session.query(Observation).filter(Observation.dataset == dataset_id,
                                                 Observation.id == data_entry_id).one()
         dataset = self.service.get_dataset(obs.dataset)
-        schema = self.service.get_schema(dataset.schema)
+        schema = ConcreteSchema(self.service.get_schema_tree(dataset.schema))
         
         entry = DataEntry()
         entry.dataset = obs.dataset
@@ -241,7 +242,6 @@ class RepositoryDB(BaseRepositoryService):
     def persist_data_entry_metadata(self, data_entry, schema, attrs, cwd):
         # Check the attributes are actually in the schema
         self.validate_schema(attrs, schema.attrs)
-        
         s = orm.sessionmaker(bind=self.engine)()
         try:
             md = DataEntryMetadata()
