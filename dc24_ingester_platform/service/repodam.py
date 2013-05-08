@@ -90,8 +90,7 @@ class RepositoryDAM(BaseRepositoryService):
             return schema.repository_id
         
         attrs = [{"name":attr.name, "identifier":attr.name, "type":attr.kind} for attr in schema.attributes]
-        for parent in schema.extends:
-            attrs += [{"name":attr.name, "identifier":attr.name, "type":attr.kind} for attr in parent.attributes]
+        parents = [p.repository_id for p in schema.extends]
 
         for attr in attrs:
             if attr["type"] in ("integer", "double"):
@@ -100,7 +99,8 @@ class RepositoryDAM(BaseRepositoryService):
                 "type":"Dataset",
                 "name":schema.name if schema.name != None else "tdh_%d"%schema.id,
                 "identifier":"tdh_%d"%schema.id,
-                "attributes":attrs}
+                "attributes":attrs,
+                "extends": parents}
         with self.connection() as repo:
             dam_schema = repo.ingest(dam_schema)
         self.new_objs.append(dam_schema["id"])
