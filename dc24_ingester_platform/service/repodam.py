@@ -187,14 +187,17 @@ class RepositoryDAM(BaseRepositoryService):
         repo = self.connection()
         return repo.retrieve_attribute(data_entry_id, attr, close_connection=True)
     
-    def find_data_entries(self, dataset_id):
+    def find_data_entries(self, dataset, limit=None, start_time=None, end_time=None):
         with self.connection() as repo:
-            dam_objs = repo.retrieve_tuples("data", dataset=dataset_id)
+            start_time = dam.format_time(start_time) if start_time is not None else None
+            end_time = dam.format_time(end_time) if end_time is not None else None
+            dam_objs = repo.retrieve_tuples("data", dataset=dataset.repository_id, 
+                            limit=limit, startTime=start_time, endTime=end_time)
         ret = []
         for dam_obj in dam_objs:
             data_entry = DataEntry()
             data_entry.id = dam_obj["metadata"]["id"]
-            data_entry.dataset = dataset_id
+            data_entry.dataset = dataset.id
             data_entry.timestamp = parse_timestamp(dam_obj["metadata"]["time"])
             for attr in dam_obj["data"]:
                 if "size" in attr:

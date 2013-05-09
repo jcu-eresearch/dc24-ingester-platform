@@ -16,9 +16,9 @@ import logging
 from dc24_ingester_platform.utils import parse_timestamp, format_timestamp
 
 import jcudc24ingesterapi.models.locations
-import jcudc24ingesterapi.models.system
 import jcudc24ingesterapi.models.dataset
 import jcudc24ingesterapi.schemas.data_types
+import jcudc24ingesterapi.models.system
 from jcudc24ingesterapi.schemas import ConcreteSchema
 from jcudc24ingesterapi.models.locations import LocationOffset
 from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
@@ -968,6 +968,9 @@ class IngesterServiceDB(IIngesterService):
             session.close()
 
     def find_data_entries(self, dataset_id):
+        """Find the data entries for this dataset. Lookup the dataset domain
+        object and pass it to the repo layer.
+        """
         return self.repo.find_data_entries(self.get_dataset(dataset_id))
 
     def get_data_entry(self, dataset_id, data_entry_id):
@@ -1020,10 +1023,13 @@ class IngesterServiceDB(IIngesterService):
         schema = self.get_schema(data_entry_metadata.metadata_schema)
         return self.repo.persist_data_entry_metadata(data_entry, schema, data_entry_metadata.data, cwd)
 
-    def search(self, object_type, criteria=None):
+    def search(self, object_type, limit=10, criteria=None):
         where = []
         obj_type = None
-        if object_type == "dataset":
+        if object_type == "data_entry":
+            return self.repo.find_data_entries(self.get_dataset(criteria.dataset), 
+                            limit=limit, start_time=criteria.start_time, end_time=criteria.end_time)
+        elif object_type == "dataset":
             obj_type = Dataset
         elif object_type == "data_entry_schema":
             obj_type = Schema

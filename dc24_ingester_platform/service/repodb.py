@@ -142,12 +142,12 @@ class RepositoryDB(BaseRepositoryService):
                 shutil.copyfile(os.path.join(cwd, attrs[k].f_path), dest_file_name)
                 attrs[k].f_path = dest_file_name
     
-    def find_data_entries(dataset_id):
+    def find_data_entries(dataset):
         """Find all observations within this dataset"""
         s = orm.sessionmaker(bind=self.engine)()
         ret = []
         try:
-            objs = s.query(Observation).filter(Observation.dataset == dataset_id).all()
+            objs = s.query(Observation).filter(Observation.dataset == dataset.id).all()
             for obj in objs:
                 pass
         finally:
