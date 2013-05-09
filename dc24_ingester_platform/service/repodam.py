@@ -74,7 +74,7 @@ class RepositoryDAM(BaseRepositoryService):
         self.new_objs = []
     
     def connection(self):
-        return dam.DAM(self._url)
+        return dam.DAM(self._url, version="1.2")
     
     def reset(self):
         logger.info("Deleting items from the DAM")
@@ -90,17 +90,17 @@ class RepositoryDAM(BaseRepositoryService):
             return schema.repository_id
         
         attrs = [{"name":attr.name, "identifier":attr.name, "type":attr.kind} for attr in schema.attributes]
-        for parent in schema.extends:
-            attrs += [{"name":attr.name, "identifier":attr.name, "type":attr.kind} for attr in parent.attributes]
+        parents = [p.repository_id for p in schema.extends]
 
         for attr in attrs:
             if attr["type"] in ("integer", "double"):
                 attr["type"] = "numerical"
-        dam_schema = {"dam_type":"SchemaMetaData",
-                "type":"DatasetMetaData",
+        dam_schema = {"dam_type":"Schema",
+                "type":"Dataset",
                 "name":schema.name if schema.name != None else "tdh_%d"%schema.id,
                 "identifier":"tdh_%d"%schema.id,
-                "attributes":attrs}
+                "attributes":attrs,
+                "extends": parents}
         with self.connection() as repo:
             dam_schema = repo.ingest(dam_schema)
         self.new_objs.append(dam_schema["id"])
@@ -108,7 +108,7 @@ class RepositoryDAM(BaseRepositoryService):
 
     @method("persist", "location")
     def persist_location(self, location):
-        dam_location = {"dam_type":"LocationMetaData",
+        dam_location = {"dam_type":"Location",
             "name":location.name,
             "latitude":location.latitude,
             "longitude":location.longitude,
@@ -122,7 +122,7 @@ class RepositoryDAM(BaseRepositoryService):
 
     @method("persist", "dataset")
     def persist_dataset(self, dataset, schema, location):
-        dam_dataset = {"dam_type":"DatasetMetaData",
+        dam_dataset = {"dam_type":"Dataset",
             "location":location.repository_id,
             "zone":"",
             "schema":schema.repository_id}
@@ -150,7 +150,7 @@ class RepositoryDAM(BaseRepositoryService):
         self.validate_schema(data_entry.data, schema.attrs)
         
         with self.connection() as repo:
-            dam_obs = {"dam_type":"ObservationMetaData",
+            dam_obs = {"dam_type":"Observation",
                 "dataset":dataset.repository_id,
                 "time":dam.format_time(data_entry.timestamp)}
             
