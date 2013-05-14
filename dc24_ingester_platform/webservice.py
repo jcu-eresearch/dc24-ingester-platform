@@ -14,7 +14,7 @@ import shutil
 from twisted.web.resource import Resource
 from jcudc24ingesterapi.ingester_platform_api import Marshaller
 import traceback
-from jcudc24ingesterapi.ingester_exceptions import IngestPlatformError
+from jcudc24ingesterapi.ingester_exceptions import IngestPlatformError, InternalSystemError
 
 logger = logging.getLogger(__name__)
 
@@ -46,14 +46,11 @@ class ManagementService(xmlrpc.XMLRPC):
         """
         try:
             return self._marshaller.obj_to_dict(self.service.persist(self._marshaller.dict_to_obj(obj)))
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
         except Exception, e:
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            traceback.print_tb(exc_traceback)
-            raise xmlrpc.Fault(1, str(e))
+            logger.exception("Error inserting")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
  
         
     def xmlrpc_update(self, obj):
@@ -61,10 +58,11 @@ class ManagementService(xmlrpc.XMLRPC):
         """
         try:
             return self._marshaller.obj_to_dict(self.service.persist(self._marshaller.dict_to_obj(obj)))
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error updating")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
         
     def xmlrpc_precommit(self, unit):
         """Creates a staging area for a unit of work and returns the transaction ID
@@ -80,10 +78,11 @@ class ManagementService(xmlrpc.XMLRPC):
             self.transaction_counter += 1
             self.transactions[transaction_id] = cwd, unit
             return transaction_id
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error during precommit")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
 
     def xmlrpc_commit(self, transaction_id):
         """Commits a unit of work based on the transaction ID.
@@ -92,10 +91,11 @@ class ManagementService(xmlrpc.XMLRPC):
             cwd, unit = self.transactions[int(transaction_id)]
             ret = self._marshaller.obj_to_dict(self.service.commit(unit, cwd), special_attrs=["correlationid"])
             return ret
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error during commit")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
         finally:
             self.cleanup_transaction(transaction_id)
 
@@ -104,105 +104,116 @@ class ManagementService(xmlrpc.XMLRPC):
             return self._marshaller.obj_to_dict(self.service.search(object_type, limit, 
                                     self._marshaller.dict_to_obj(criteria)))
         except Exception, e:
-            raise xmlrpc.Fault(1, str(e))
+            logger.exception("Error searching")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
 
     def xmlrpc_getIngesterLogs(self, dataset_id):
         try:
             return self._marshaller.obj_to_dict(self.service.get_ingester_logs(dataset_id))
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error getting ingester logs")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
 
     def xmlrpc_getRegion(self, region_id):
         """Retrieve a location by id
         """
         try:
             return self._marshaller.obj_to_dict(self.service.get_region(region_id))
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error getting region")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
 
     def xmlrpc_getLocation(self, location_id):
         """Retrieve a location by id
         """
         try:
             return self._marshaller.obj_to_dict(self.service.get_location(location_id))
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error getting location")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
 
     def xmlrpc_getSchema(self, schema_id):
         """Retrieve a schema by id
         """
         try:
             return self._marshaller.obj_to_dict(self.service.get_schema(schema_id))
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error getting schema")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
         
     def xmlrpc_getDataset(self, dataset_id):
         """Retrieve a dataset by id
         """
         try:
             return self._marshaller.obj_to_dict(self.service.get_dataset(dataset_id))
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error getting dataset")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
         
     def xmlrpc_getDataEntry(self, dataset_id, data_entry_id):
         """Retrieve a data entry by dataset id + data entry id
         """
         try:
             return self._marshaller.obj_to_dict(self.service.get_data_entry(dataset_id, data_entry_id))
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error getting data entry")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
 
     def xmlrpc_enableDataset(self, dataset_id):
         """Enable ingestion of a dataset.
         """
         try:
             return self.service.enable_dataset(dataset_id)
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error enabling dataset")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
 
     def xmlrpc_disableDataset(self, dataset_id):
         """Disable ingestion of a dataset.
         """
         try:
             return self.service.disable_dataset(dataset_id)
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error disabling dataset")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
         
     def xmlrpc_findDatasets(self, search_args):
         """Disable ingestion of a dataset.
         """
         try:
             return self._marshaller.obj_to_dict(self.service.find_datasets(**search_args))
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error finding datasets")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
         
     def xmlrpc_invokeIngester(self, dataset_id):
         """Disable ingestion of a dataset.
         """
         try:
             return self.service.invoke_ingester(dataset_id)
-        except ValueError, e:
-            raise xmlrpc.Fault(99, str(e))
         except IngestPlatformError, e:
             raise translate_exception(e)
+        except Exception, e:
+            logger.exception("Error invoking ingester")
+            raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
         
     def xmlrpc_ping(self):
         """A simple connection diagnostic method.
