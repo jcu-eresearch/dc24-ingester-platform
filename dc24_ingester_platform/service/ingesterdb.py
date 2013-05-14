@@ -445,7 +445,7 @@ class IngesterServiceDB(IIngesterService):
             return ret
         except Exception as e:
             s.rollback()
-            raise e
+            raise
         finally:
             s.close()
 
