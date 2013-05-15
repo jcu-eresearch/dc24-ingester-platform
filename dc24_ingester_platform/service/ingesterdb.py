@@ -967,6 +967,23 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
 
+    def find_schemas(self, repository_id=None, **kwargs):
+        """Find all datasets with the provided attributes"""
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            objs = session.query(Schema)
+            if repository_id != None:
+                objs = objs.filter(Schema.repository_id == repository_id)
+                
+            objs.all()
+            
+            ret_list = []
+            for obj in objs:
+                ret_list.append(dao_to_domain(obj))
+            return ret_list
+        finally:
+            session.close()
+
     def find_data_entries(self, dataset_id):
         """Find the data entries for this dataset. Lookup the dataset domain
         object and pass it to the repo layer.
@@ -996,7 +1013,6 @@ class IngesterServiceDB(IIngesterService):
         dataset_id = data_entry.dataset
         dataset = self.get_dataset(dataset_id)
         schema = ConcreteSchema(self.get_schema_tree(dataset.schema))
-        logger.info("concrete schema")
         obs = self.repo.persist_data_entry(dataset, schema, data_entry, cwd)
         for listener in self.obs_listeners:
             listener.notify_new_data_entry(obs, cwd)
