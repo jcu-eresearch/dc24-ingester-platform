@@ -142,16 +142,76 @@ class RepositoryDB(BaseRepositoryService):
                 shutil.copyfile(os.path.join(cwd, attrs[k].f_path), dest_file_name)
                 attrs[k].f_path = dest_file_name
     
-    def find_data_entries(dataset):
-        """Find all observations within this dataset"""
+    def find_data_entries(self, dataset, limit=None, start_time=None, end_time=None):
+        """Find all observations within this dataset that match the given criteria"""
         s = orm.sessionmaker(bind=self.engine)()
-        ret = []
         try:
-            objs = s.query(Observation).filter(Observation.dataset == dataset.id).all()
-            for obj in objs:
-                pass
+            dataset = self.service.get_dataset(dataset.id)
+            schema = ConcreteSchema(self.service.get_schema_tree(dataset.schema))
+        
+            objs = s.query(Observation).filter(Observation.dataset == dataset.id)
+            if start_time != None:
+                objs = objs.filter(Observation.timestamp >= start_time)
+            if end_time != None:
+                objs = objs.filter(Observation.timestamp <= end_time)
+            if limit != None:
+                objs = objs.limit(limit)
+            
+            return [self._create_data_entry(obs, schema) for obs in objs.all()]
         finally:
             s.close()
+
+    def find_dataset_metadata(self, dataset):
+        s = orm.sessionmaker(bind=self.engine)()
+        try:
+            objs = s.query(DatasetMetadata).filter(DatasetMetadata.dataset == dataset.id)
+            
+            return [self._create_dataset_metadata(s, obj) for obj in objs.all()]
+        finally:
+            s.close()
+
+    def find_data_entry_metadata(self, data_entry):
+        s = orm.sessionmaker(bind=self.engine)()
+        try:
+            objs = s.query(DataEntryMetadata).filter(DataEntryMetadata.data_entry == data_entry.id)
+            
+            return [self._create_data_entry_metadata(obj) for obj in objs.all()]
+        finally:
+            s.close()
+        
+    def _create_dataset_metadata(self, session, obj):
+        """Internal method for creating the DataEntry domain object from a database
+        observation
+        """
+        schema = ConcreteSchema(self.service.get_schema_tree(obj.schema))
+        
+        entry = DatasetMetadataEntry()
+        entry.metadata_schema = obj.schema
+        entry.id = obj.id
+        entry.object_id = obj.dataset
+        for attr in obj.attrs:
+            if isinstance(schema.attrs[attr.name], FileDataType):
+                entry[attr.name] = FileObject(f_path=attr.value) 
+            else:
+                entry[attr.name] = attr.value 
+        return entry
+
+    def _create_data_entry_metadata(self, session, obj):
+        """Internal method for creating the DataEntry domain object from a database
+        observation
+        """
+        schema = ConcreteSchema(self.service.get_schema_tree(obj.schema))
+        
+        entry = DataEntryMetadataEntry()
+        entry.metadata_schema = obj.schema
+        entry.id = obj.id
+        entry.object_id = obj.data_entry
+        for attr in obj.attrs:
+            if isinstance(schema.attrs[attr.name], FileDataType):
+                entry[attr.name] = FileObject(f_path=attr.value) 
+            else:
+                entry[attr.name] = attr.value 
+        return entry
 
     def persist_data_entry(self, dataset, schema, data_entry, cwd):
         # Check the attributes are actually in the schema
@@ -197,6 +257,12 @@ class RepositoryDB(BaseRepositoryService):
         dataset = self.service.get_dataset(obs.dataset)
         schema = ConcreteSchema(self.service.get_schema_tree(dataset.schema))
         
+        return self._create_data_entry(obs, schema)
+        
+    def _create_data_entry(self, obs, schema):
+        """Internal method for creating the DataEntry domain object from a database
+        observation
+        """
         entry = DataEntry()
         entry.dataset = obs.dataset
         entry.id = obs.id

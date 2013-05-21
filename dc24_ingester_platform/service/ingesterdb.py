@@ -19,6 +19,9 @@ import jcudc24ingesterapi.models.locations
 import jcudc24ingesterapi.models.dataset
 import jcudc24ingesterapi.schemas.data_types
 import jcudc24ingesterapi.models.system
+from jcudc24ingesterapi.search import DataEntrySearchCriteria, DatasetSearchCriteria, DataEntryMetadataSearchCriteria, \
+            DatasetMetadataSearchCriteria, LocationSearchCriteria, DataEntrySchemaSearchCriteria, \
+            DataEntryMetadataSchemaSearchCriteria, DatasetMetadataSchemaSearchCriteria
 from jcudc24ingesterapi.schemas import ConcreteSchema
 from jcudc24ingesterapi.models.locations import LocationOffset
 from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
@@ -819,21 +822,25 @@ class IngesterServiceDB(IIngesterService):
     def get_schema_tree(self, s_id):
         """Get the schema as a DTO"""
         session = orm.sessionmaker(bind=self.engine)()
-        queue = [s_id]
-        ret = []
         try:
-            while len(queue):
-                s_id = queue[0]
-                del queue[0]
-                
-                obj = session.query(Schema).filter(Schema.id == s_id).one()
-                schema = dao_to_domain(obj)
-                ret.append(schema)
-                for extends in schema.extends:
-                    queue.append(extends)
-            return ret
+            return self._get_schema_tree(session, s_id)
         finally:
             session.close()
+            
+    def _get_schema_tree(self, session, s_id):
+        """Get the schema as a DTO"""
+        queue = [s_id]
+        ret = []
+        while len(queue):
+            s_id = queue[0]
+            del queue[0]
+            
+            obj = session.query(Schema).filter(Schema.id == s_id).one()
+            schema = dao_to_domain(obj)
+            ret.append(schema)
+            for extends in schema.extends:
+                queue.append(extends)
+        return ret
             
     def get_location(self, loc_id):
         """Get the location as a DTO"""
@@ -1039,24 +1046,31 @@ class IngesterServiceDB(IIngesterService):
         schema = self.get_schema(data_entry_metadata.metadata_schema)
         return self.repo.persist_data_entry_metadata(data_entry, schema, data_entry_metadata.data, cwd)
 
-    def search(self, object_type, limit=10, criteria=None):
+    def search(self, criteria, limit=10):
         where = []
         obj_type = None
-        if object_type == "data_entry":
+        if isinstance(criteria, DataEntrySearchCriteria):
             return self.repo.find_data_entries(self.get_dataset(criteria.dataset), 
                             limit=limit, start_time=criteria.start_time, end_time=criteria.end_time)
-        elif object_type == "dataset":
+        elif isinstance(criteria, DatasetMetadataSearchCriteria):
+            return self.repo.find_dataset_metadata(self.get_dataset(criteria.dataset))
+        elif isinstance(criteria, DataEntryMetadataSearchCriteria):
+            return self.repo.find_data_entry_metadata(self.get_dataset(criteria.dataset), criteria.data_entry)
+        elif isinstance(criteria, DatasetSearchCriteria):
             obj_type = Dataset
-        elif object_type == "data_entry_schema":
+        elif isinstance(criteria, LocationSearchCriteria):
+            obj_type = Location
+        elif isinstance(criteria, DataEntrySchemaSearchCriteria):
             obj_type = Schema
             where.append(Schema.for_ == "data_entry")
-        elif object_type == "dataset_metadata_schema":
+        elif isinstance(criteria, DataEntryMetadataSchemaSearchCriteria):
+            obj_type = Schema
+            where.append(Schema.for_ == "data_entry_metadata")
+        elif isinstance(criteria, DatasetMetadataSchemaSearchCriteria):
             obj_type = Schema
             where.append(Schema.for_ == "dataset_metadata")
-        elif object_type == "location":
-            obj_type = Location
         if obj_type == None:
-            raise ValueError("object_type==%s is not supported" % object_type)
+            raise ValueError("object_type==%s is not supported" % str(type(criteria)))
         
         s = orm.sessionmaker(bind=self.engine)()
         try:

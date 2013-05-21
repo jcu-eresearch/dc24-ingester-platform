@@ -99,10 +99,10 @@ class ManagementService(xmlrpc.XMLRPC):
         finally:
             self.cleanup_transaction(transaction_id)
 
-    def xmlrpc_search(self, object_type, limit, criteria):
+    def xmlrpc_search(self, criteria, limit):
         try:
-            return self._marshaller.obj_to_dict(self.service.search(object_type, limit, 
-                                    self._marshaller.dict_to_obj(criteria)))
+            return self._marshaller.obj_to_dict(self.service.search(self._marshaller.dict_to_obj(criteria), 
+                                    limit))
         except Exception, e:
             logger.exception("Error searching")
             raise xmlrpc.Fault(InternalSystemError.__xmlrpc_error__, str(e))
