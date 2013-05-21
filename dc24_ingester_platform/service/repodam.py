@@ -251,6 +251,29 @@ class RepositoryDAM(BaseRepositoryService):
             ret.append(data_entry)
         return ret
 
+    def find_dataset_metadata(self, dataset, limit=None):
+        return self._find_object_metadata(dataset, limit, DatasetMetadataEntry, self.service.get_dataset)
+
+    def find_data_entry_metadata(self, data_entry, limit=None):
+        return self._find_object_metadata(data_entry, limit, DataEntryMetadataEntry)
+
+    def _find_object_metadata(self, obj, limit, factory, lookup=None):
+        try:
+            with self.connection() as repo:
+                dam_objs = repo.retrieve_tuples("object_metadata", subject=obj.repository_id, 
+                                limit=limit)
+        except dam.DAMException as e:
+            logger.exception("Exception while getting data entries")
+            raise PersistenceError("Error getting data entries: %s"%(str(e)))
+        
+        ret = []
+        for dam_obj in dam_objs:
+            subject_id = dam_obj["metadata"]["subject"] if lookup == None else lookup(dam_obj["metadata"]["subject"])
+            schema_id = self.service.find_schemas(repository_id = dam_obj["metadata"]["schema"])[0].id
+            md = factory(subject_id, schema_id, dam_obj["metadata"]["id"])
+            self._copy_attrs(dam_obj["data"], md)
+            ret.append(md)
+        return ret
     
     def persist_data_entry_metadata(self, dataset, schema, attrs, cwd):
         return self._persist_metadata(dataset, schema, attrs, cwd)
