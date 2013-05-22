@@ -237,7 +237,7 @@ class RepositoryDAM(BaseRepositoryService):
                 start_time = dam.format_time(start_time) if start_time is not None else None
                 end_time = dam.format_time(end_time) if end_time is not None else None
                 dam_objs = repo.retrieve_tuples("data", dataset=dataset.repository_id, 
-                                limit=limit, startTime=start_time, endTime=end_time)
+                                offset=offset, limit=limit, startTime=start_time, endTime=end_time)
         except dam.DAMException as e:
             logger.exception("Exception while getting data entries")
             raise PersistenceError("Error getting data entries: %s"%(str(e)))
@@ -252,17 +252,17 @@ class RepositoryDAM(BaseRepositoryService):
             ret.append(data_entry)
         return SearchResults(ret, dam_objs["offset"], dam_objs["limit"], dam_objs["count"])
 
-    def find_dataset_metadata(self, dataset, limit=None):
-        return self._find_object_metadata(dataset, limit, DatasetMetadataEntry, self.service.get_dataset)
+    def find_dataset_metadata(self, dataset, offset, limit):
+        return self._find_object_metadata(dataset, offset, limit, DatasetMetadataEntry, self.service.get_dataset)
 
-    def find_data_entry_metadata(self, data_entry, limit=None):
-        return self._find_object_metadata(data_entry, limit, DataEntryMetadataEntry)
+    def find_data_entry_metadata(self, data_entry, offset, limit):
+        return self._find_object_metadata(data_entry, offset, limit, DataEntryMetadataEntry)
 
-    def _find_object_metadata(self, obj, limit, factory, lookup=None):
+    def _find_object_metadata(self, obj, offset, limit, factory, lookup=None):
         try:
             with self.connection() as repo:
                 dam_objs = repo.retrieve_tuples("object_metadata", subject=obj.repository_id, 
-                                limit=limit)
+                                offset=offset, limit=limit)
         except dam.DAMException as e:
             logger.exception("Exception while getting data entries")
             raise PersistenceError("Error getting data entries: %s"%(str(e)))
