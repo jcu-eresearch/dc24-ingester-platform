@@ -18,6 +18,7 @@ from jcudc24ingesterapi.schemas.data_types import FileDataType
 from jcudc24ingesterapi.models.data_entry import DataEntry, FileObject
 from jcudc24ingesterapi.models.metadata import DatasetMetadataEntry, DataEntryMetadataEntry
 from jcudc24ingesterapi.schemas import ConcreteSchema
+from jcudc24ingesterapi.search import SearchResults
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +143,7 @@ class RepositoryDB(BaseRepositoryService):
                 shutil.copyfile(os.path.join(cwd, attrs[k].f_path), dest_file_name)
                 attrs[k].f_path = dest_file_name
     
-    def find_data_entries(self, dataset, limit=None, start_time=None, end_time=None):
+    def find_data_entries(self, dataset, offset, limit, start_time=None, end_time=None):
         """Find all observations within this dataset that match the given criteria"""
         s = orm.sessionmaker(bind=self.engine)()
         try:
@@ -154,28 +155,32 @@ class RepositoryDB(BaseRepositoryService):
                 objs = objs.filter(Observation.timestamp >= start_time)
             if end_time != None:
                 objs = objs.filter(Observation.timestamp <= end_time)
-            if limit != None:
-                objs = objs.limit(limit)
+            count = objs.count()
+            objs = objs.limit(limit).offset(offset)
             
-            return [self._create_data_entry(obs, schema) for obs in objs.all()]
+            return SearchResults([self._create_data_entry(obs, schema) for obs in objs.all()], offset, limit, count)
         finally:
             s.close()
 
-    def find_dataset_metadata(self, dataset):
+    def find_dataset_metadata(self, dataset, offset, limit):
         s = orm.sessionmaker(bind=self.engine)()
         try:
             objs = s.query(DatasetMetadata).filter(DatasetMetadata.dataset == dataset.id)
+            count = objs.count()
             
-            return [self._create_dataset_metadata(s, obj) for obj in objs.all()]
+            return SearchResults([self._create_dataset_metadata(s, obj) for obj in objs.offset(offset).limit(limit).all()], \
+                                 offset, limit, count)
         finally:
             s.close()
 
-    def find_data_entry_metadata(self, data_entry):
+    def find_data_entry_metadata(self, data_entry, offset, limit):
         s = orm.sessionmaker(bind=self.engine)()
         try:
             objs = s.query(DataEntryMetadata).filter(DataEntryMetadata.data_entry == data_entry.id)
+            count = objs.count()
             
-            return [self._create_data_entry_metadata(obj) for obj in objs.all()]
+            return SearchResults([self._create_data_entry_metadata(obj) for obj in objs.offset(offset).limit(limit).all()], \
+                                 offset, limit, count)
         finally:
             s.close()
         

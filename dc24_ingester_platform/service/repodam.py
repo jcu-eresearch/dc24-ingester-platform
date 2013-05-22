@@ -14,6 +14,7 @@ import time
 from jcudc24ingesterapi.models.data_entry import FileObject, DataEntry
 from dc24_ingester_platform.utils import parse_timestamp
 from jcudc24ingesterapi.ingester_exceptions import UnknownObjectError, PersistenceError
+from jcudc24ingesterapi.search import SearchResults
 from jcudc24ingesterapi.models.metadata import DatasetMetadataEntry, DataEntryMetadataEntry
 
 logger = logging.getLogger(__name__)
@@ -230,7 +231,7 @@ class RepositoryDAM(BaseRepositoryService):
         repo = self.connection()
         return repo.retrieve_attribute(data_entry_id, attr, close_connection=True)
     
-    def find_data_entries(self, dataset, limit=None, start_time=None, end_time=None):
+    def find_data_entries(self, dataset, offset, limit, start_time=None, end_time=None):
         try:
             with self.connection() as repo:
                 start_time = dam.format_time(start_time) if start_time is not None else None
@@ -242,14 +243,14 @@ class RepositoryDAM(BaseRepositoryService):
             raise PersistenceError("Error getting data entries: %s"%(str(e)))
         
         ret = []
-        for dam_obj in dam_objs:
+        for dam_obj in dam_objs["results"]:
             data_entry = DataEntry()
             data_entry.id = dam_obj["metadata"]["id"]
             data_entry.dataset = dataset.id
             data_entry.timestamp = parse_timestamp(dam_obj["metadata"]["time"])
             self._copy_attrs(dam_obj["data"], data_entry)
             ret.append(data_entry)
-        return ret
+        return SearchResults(ret, dam_objs["offset"], dam_objs["limit"], dam_objs["count"])
 
     def find_dataset_metadata(self, dataset, limit=None):
         return self._find_object_metadata(dataset, limit, DatasetMetadataEntry, self.service.get_dataset)
@@ -267,13 +268,13 @@ class RepositoryDAM(BaseRepositoryService):
             raise PersistenceError("Error getting data entries: %s"%(str(e)))
         
         ret = []
-        for dam_obj in dam_objs:
+        for dam_obj in dam_objs["results"]:
             subject_id = dam_obj["metadata"]["subject"] if lookup == None else lookup(dam_obj["metadata"]["subject"])
             schema_id = self.service.find_schemas(repository_id = dam_obj["metadata"]["schema"])[0].id
             md = factory(subject_id, schema_id, dam_obj["metadata"]["id"])
             self._copy_attrs(dam_obj["data"], md)
             ret.append(md)
-        return ret
+        return SearchResults(ret, dam_objs["offset"], dam_objs["limit"], dam_objs["count"])
     
     def persist_data_entry_metadata(self, dataset, schema, attrs, cwd):
         return self._persist_metadata(dataset, schema, attrs, cwd)

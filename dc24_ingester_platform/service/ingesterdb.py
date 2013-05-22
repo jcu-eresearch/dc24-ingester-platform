@@ -21,7 +21,7 @@ import jcudc24ingesterapi.schemas.data_types
 import jcudc24ingesterapi.models.system
 from jcudc24ingesterapi.search import DataEntrySearchCriteria, DatasetSearchCriteria, DataEntryMetadataSearchCriteria, \
             DatasetMetadataSearchCriteria, LocationSearchCriteria, DataEntrySchemaSearchCriteria, \
-            DataEntryMetadataSchemaSearchCriteria, DatasetMetadataSchemaSearchCriteria
+            DataEntryMetadataSchemaSearchCriteria, DatasetMetadataSchemaSearchCriteria, SearchResults
 from jcudc24ingesterapi.schemas import ConcreteSchema
 from jcudc24ingesterapi.models.locations import LocationOffset
 from jcudc24ingesterapi.ingester_platform_api import get_properties, Marshaller
@@ -1046,16 +1046,18 @@ class IngesterServiceDB(IIngesterService):
         schema = self.get_schema(data_entry_metadata.metadata_schema)
         return self.repo.persist_data_entry_metadata(data_entry, schema, data_entry_metadata.data, cwd)
 
-    def search(self, criteria, limit=10):
+    def search(self, criteria, offset, limit=10):
         where = []
         obj_type = None
         if isinstance(criteria, DataEntrySearchCriteria):
-            return self.repo.find_data_entries(self.get_dataset(criteria.dataset), 
+            return self.repo.find_data_entries(self.get_dataset(criteria.dataset), offset=offset,
                             limit=limit, start_time=criteria.start_time, end_time=criteria.end_time)
         elif isinstance(criteria, DatasetMetadataSearchCriteria):
-            return self.repo.find_dataset_metadata(self.get_dataset(criteria.dataset))
+            return self.repo.find_dataset_metadata(self.get_dataset(criteria.dataset), offset=offset,
+                            limit=limit)
         elif isinstance(criteria, DataEntryMetadataSearchCriteria):
-            return self.repo.find_data_entry_metadata(self.get_dataset(criteria.dataset), criteria.data_entry)
+            return self.repo.find_data_entry_metadata(self.get_dataset(criteria.dataset), criteria.data_entry, 
+                            offset=offset, limit=limit)
         elif isinstance(criteria, DatasetSearchCriteria):
             obj_type = Dataset
         elif isinstance(criteria, LocationSearchCriteria):
@@ -1074,11 +1076,12 @@ class IngesterServiceDB(IIngesterService):
         
         s = orm.sessionmaker(bind=self.engine)()
         try:
-            objs = s.query(obj_type).filter(*where).all()
+            count = s.query(obj_type).filter(*where).count()
+            objs = s.query(obj_type).filter(*where).limit(limit).offset(offset).all()
             ret_list = []
             for obj in objs:
                 ret_list.append(dao_to_domain(obj))
-            return ret_list
+            return SearchResults(ret_list, offset, limit, count)
         finally:
             s.close() 
 
