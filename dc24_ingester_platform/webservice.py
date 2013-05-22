@@ -12,6 +12,7 @@ import os
 import sys
 import shutil
 from twisted.web.resource import Resource
+from twisted.web.static import NoRangeStaticProducer
 from jcudc24ingesterapi.ingester_platform_api import Marshaller
 import traceback
 from jcudc24ingesterapi.ingester_exceptions import IngestPlatformError, InternalSystemError
@@ -242,6 +243,9 @@ class ResettableManagementService(ManagementService):
         self.service.reset()
 
 class DataController(Resource):
+    """The data controller is responsible for handling data file uploads and downloads. It occupies the same 
+    tree as the XMLRPC service, and will dispatch to that when required.
+    """
     isLeaf = True
 
     def __init__(self, service, xmlrpc):
@@ -297,6 +301,35 @@ class DataController(Resource):
                     break
             if done: break
         return "OK"
+
+    def render_GET(self, request):
+        # Probably never required, but...
+        if len(request.postpath) == 0:
+            return self.xmlrpc.render_GET(request)
+        
+        if len(request.postpath) < 3:
+            request.setResponseCode(400)
+            return "Invalid request"
+        data_type = request.postpath[0] # data_entry, data_entry_meta_data, dataset_metadata
+        if data_type == "data_entry":
+            if len(request.postpath) != 4:
+                request.setResponseCode(400)
+                return "Invalid request"
+            
+            dataset_id = request.postpath[1]
+            obj_id = request.postpath[2]
+            attr = request.postpath[3]
+            # Get the size out of this:
+            data_entry = self.service.get_data_entry(dataset_id, obj_id)
+            request.setResponseCode(200)
+            f = self.service.get_data_entry_stream(dataset_id, obj_id, attr)
+            # FIXME the Resource tree needs to return bytes, not a stream, so this won't
+            # work for big files
+            return f.read()
+            
+        else:
+            request.setResponseCode(400)
+            return "Invalid request"
 
 def makeServer(staging_dir, service):
     """Construct a management service server using the supplied service facade.
