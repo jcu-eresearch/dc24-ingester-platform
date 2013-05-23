@@ -316,8 +316,8 @@ class DataController(Resource):
                 request.setResponseCode(400)
                 return "Invalid request"
             
-            dataset_id = request.postpath[1]
-            obj_id = request.postpath[2]
+            dataset_id = int(request.postpath[1])
+            obj_id = int(request.postpath[2])
             attr = request.postpath[3]
             # Get the size out of this:
             data_entry = self.service.get_data_entry(dataset_id, obj_id)
