@@ -1056,7 +1056,7 @@ class IngesterServiceDB(IIngesterService):
             return self.repo.find_dataset_metadata(self.get_dataset(criteria.dataset), offset=offset,
                             limit=limit)
         elif isinstance(criteria, DataEntryMetadataSearchCriteria):
-            return self.repo.find_data_entry_metadata(self.get_dataset(criteria.dataset), criteria.data_entry, 
+            return self.repo.find_data_entry_metadata(criteria.data_entry, 
                             offset=offset, limit=limit)
         elif isinstance(criteria, DatasetSearchCriteria):
             obj_type = Dataset
