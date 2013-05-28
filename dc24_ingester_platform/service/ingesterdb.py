@@ -609,6 +609,10 @@ class IngesterServiceDB(IIngesterService):
     def persist_dataset_metadata_schema(self, schema, session, cwd):
         return self._persist_schema(schema, "dataset_metadata", session)
 
+    @method("persist", "data_entry_metadata_schema")
+    def persist_data_entry_metadata_schema(self, schema, session, cwd):
+        return self._persist_schema(schema, "data_entry_metadata", session)
+
     @method("persist", "data_entry_schema")
     def persist_data_entry_schema(self, schema, session, cwd):
         return self._persist_schema(schema, "data_entry", session)
@@ -1041,8 +1045,9 @@ class IngesterServiceDB(IIngesterService):
 
     @method("persist", "data_entry_metadata_entry")
     def persist_data_entry_metadata(self, data_entry_metadata, session, cwd):
-        dataset_id = data_entry_metadata.object_id
-        data_entry = self.get_data_entry(dataset_id)
+        data_id = data_entry_metadata.object_id
+        dataset_id = data_entry_metadata.dataset
+        data_entry = self.get_data_entry(dataset_id, data_id)
         schema = self.get_schema(data_entry_metadata.metadata_schema)
         return self.repo.persist_data_entry_metadata(data_entry, schema, data_entry_metadata.data, cwd)
 
@@ -1056,7 +1061,7 @@ class IngesterServiceDB(IIngesterService):
             return self.repo.find_dataset_metadata(self.get_dataset(criteria.dataset), offset=offset,
                             limit=limit)
         elif isinstance(criteria, DataEntryMetadataSearchCriteria):
-            return self.repo.find_data_entry_metadata(criteria.data_entry, 
+            return self.repo.find_data_entry_metadata(self.get_data_entry(criteria.dataset, criteria.data_entry),
                             offset=offset, limit=limit)
         elif isinstance(criteria, DatasetSearchCriteria):
             obj_type = Dataset

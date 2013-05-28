@@ -7,6 +7,7 @@ from dc24_ingester_platform.service import BaseRepositoryService, method,\
     ingesterdb
 import decimal
 import logging
+from jcudc24ingesterapi.models.dataset import Dataset
 import os
 import shutil
 import dam
@@ -261,7 +262,7 @@ class RepositoryDAM(BaseRepositoryService):
     def _find_object_metadata(self, obj, offset, limit, factory, lookup=None):
         try:
             with self.connection() as repo:
-                dam_objs = repo.retrieve_tuples("object_metadata", subject=obj.repository_id, 
+                dam_objs = repo.retrieve_tuples("object_metadata", subject=obj.id,
                                 offset=offset, limit=limit)
         except dam.DAMException as e:
             logger.exception("Exception while getting data entries")
@@ -290,8 +291,12 @@ class RepositoryDAM(BaseRepositoryService):
         try:
             with self.connection() as repo:
                 obj_md = {"dam_type":"ObjectMetaData",
-                    "subject":dataset.repository_id,
                     "schema":schema.repository_id}
+                if isinstance(dataset, Dataset):
+                    obj_md["subject"] = dataset.repository_id
+                elif isinstance(dataset, DataEntry):
+                    obj_md['dataset'] = dataset.dataset
+                    obj_md['subject'] = dataset.id
                 
                 obj_md = repo.ingest(obj_md, lock=True)
                 
