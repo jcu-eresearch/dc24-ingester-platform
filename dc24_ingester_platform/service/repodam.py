@@ -272,7 +272,7 @@ class RepositoryDAM(BaseRepositoryService):
         for dam_obj in dam_objs["results"]:
             subject_id = dam_obj["metadata"]["subject"] if lookup == None else lookup(dam_obj["metadata"]["subject"])
             schema_id = self.service.find_schemas(repository_id = dam_obj["metadata"]["schema"])[0].id
-            md = factory(subject_id, schema_id, dam_obj["metadata"]["id"])
+            md = factory(object_id=subject_id, metadata_schema_id=schema_id, id=dam_obj["metadata"]["id"])
             self._copy_attrs(dam_obj["data"], md)
             ret.append(md)
         return SearchResults(ret, dam_objs["offset"], dam_objs["limit"], dam_objs["count"])
