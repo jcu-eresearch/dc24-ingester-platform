@@ -83,7 +83,10 @@ def find_method(self, verb, cls):
             return fn
     return None
 
-def makeService(db_url, repo_url):
+def makeResettableService(db_url, repo_url):
+    return makeService(db_url, repo_url, True)
+
+def makeService(db_url, repo_url, resettable=False):
     """Construct a service facade from the provided service URLs
     
     If the repo_url is a DAM url construct a DAM repo. If the repo_url is a dict
@@ -96,7 +99,7 @@ def makeService(db_url, repo_url):
         repo = repodb.RepositoryDB(repo_url)
     else:
         import repodam
-        repo = repodam.RepositoryDAM(repo_url)
+        repo = repodam.RepositoryDAM(repo_url, resettable=True)
     ingester_service = ingesterdb.IngesterServiceDB(db_url, repo=repo)
     return ingester_service
 
