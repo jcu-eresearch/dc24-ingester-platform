@@ -73,15 +73,17 @@ class RepositoryDAM(BaseRepositoryService):
     
     All objects/DTOs passed in and out of this service are dicts. This service protects the storage layer.
     """
-    def __init__(self, url):
+    def __init__(self, url, resettable=False):
         self._url = url
         # A list of new obj ids that will be deleted on reset
         self.new_objs = []
+        self.resettable = resettable
     
     def connection(self):
         return dam.DAM(self._url, version="1.2")
     
     def reset(self):
+        if not resettable: return
         logger.info("Deleting items from the DAM")
         self.new_objs.reverse()
         with self.connection() as repo:
@@ -89,6 +91,7 @@ class RepositoryDAM(BaseRepositoryService):
         self.new_objs = []
         
     def mark_for_reset(self, oid):
+        if not resettable: return
         if oid not in self.new_objs: 
             self.new_objs.append(oid)
 
@@ -295,7 +298,6 @@ class RepositoryDAM(BaseRepositoryService):
                 if isinstance(dataset, Dataset):
                     obj_md["subject"] = dataset.repository_id
                 elif isinstance(dataset, DataEntry):
-                    obj_md['dataset'] = dataset.dataset
                     obj_md['subject'] = dataset.id
                 
                 obj_md = repo.ingest(obj_md, lock=True)
