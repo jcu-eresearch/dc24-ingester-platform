@@ -35,3 +35,14 @@ ds2=c.insert(ds)
 In order to run service so that it can be integrated with unit tests more easily, there is a special
 implementation of the service that allows all the data to be reset remotely. To use this version start
 the service with the folling command: **./bin/twistd -n -y dc24_ingester_platform_test_service.tac**
+
+
+Credits
+-------
+
+This project is supported by [the Australian National Data Service (ANDS)](http://www.ands.org.au/) through the National Collaborative Research Infrastructure Strategy Program and the Education Investment Fund (EIF) Super Science Initiative, as well as through the [Queensland Cyber Infrastructure Foundation (QCIF)](http://www.qcif.edu.au/).
+
+License
+-------
+
+See `LICENCE.txt`.
