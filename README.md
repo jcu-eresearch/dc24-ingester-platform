@@ -1,13 +1,3 @@
-This project has been developed as part of EnMaSSe (Environmental Monitoring and Sensor Storage) and is related to:
-
-* [Documentation](https://github.com/jcu-eresearch/TDH-Rich-Data-Capture-Documentation) - Contains full user, administrator and developer guides.
-* [Deployment](https://github.com/jcu-eresearch/EnMaSSe-Deployment) - Recommended way to install
-* [Provisioning Interface](https://github.com/jcu-eresearch/TDH-rich-data-capture) - User interface/website for EnMaSSe
-* [Ingester API](https://github.com/jcu-eresearch/jcu.dc24.ingesterapi) - API for integrating the EnMaSSe provisioning interface with the ingester platform (this)
-* [SimpleSOS](https://github.com/jcu-eresearch/python-simplesos) - Library used for the SOSScraperDataSource.
- 
-**Unless you are using the Ingester Platform as a standalone component it is recommended that you use the [Deployment](https://github.com/jcu-eresearch/EnMaSSe-Deployment) repository for installation.**
-
 # EnMaSSe Ingester Platform
 
 This project aims to implement a scheduling system, with XMLRPC management interface for ingesting into a repository data from:
@@ -18,7 +8,22 @@ This project aims to implement a scheduling system, with XMLRPC management inter
 
 The project is implemented using Twisted.
 
+This project has been developed as part of EnMaSSe (Environmental Monitoring and Sensor Storage) and is related to:
+
+* [Documentation](https://github.com/jcu-eresearch/TDH-Rich-Data-Capture-Documentation) - Contains full user, administrator and developer guides.
+* [Deployment](https://github.com/jcu-eresearch/EnMaSSe-Deployment) - Recommended way to install
+* [Provisioning Interface](https://github.com/jcu-eresearch/TDH-rich-data-capture) - User interface/website for EnMaSSe
+* [Ingester API](https://github.com/jcu-eresearch/jcu.dc24.ingesterapi) - API for integrating the EnMaSSe provisioning interface with the ingester platform (this)
+* [SimpleSOS](https://github.com/jcu-eresearch/python-simplesos) - Library used for the SOSScraperDataSource.
+ 
+
 ## Getting Started
+
+**Unless you plan to use the Ingester Platform as a standalone component it is recommended that you use the [Deployment](https://github.com/jcu-eresearch/EnMaSSe-Deployment) repository for installation.**
+
+-------------------
+
+Standalone installation instructions:
 
 1. Clone the project
 2. Run **buildout** to setup the required dependencies
