@@ -83,7 +83,7 @@ class RepositoryDAM(BaseRepositoryService):
         return dam.DAM(self._url, version="1.2")
     
     def reset(self):
-        if not resettable: return
+        if not self.resettable: return
         logger.info("Deleting items from the DAM")
         self.new_objs.reverse()
         with self.connection() as repo:
@@ -91,7 +91,7 @@ class RepositoryDAM(BaseRepositoryService):
         self.new_objs = []
         
     def mark_for_reset(self, oid):
-        if not resettable: return
+        if not self.resettable: return
         if oid not in self.new_objs: 
             self.new_objs.append(oid)
 
