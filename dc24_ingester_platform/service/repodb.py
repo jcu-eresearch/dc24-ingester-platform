@@ -74,7 +74,7 @@ class ObservationAttr(Base):
 class DataEntryMetadata(Base):
     __tablename__ = "DATA_ENTRY_METADATA"
     id = Column(Integer, primary_key=True)
-    data_entry = Column(Integer)
+    data_entry = Column(Integer, ForeignKey('OBSERVATIONS.id'))
     schema = Column(Integer)
     attrs = orm.relationship("DataEntryMetadataAttr")
 
@@ -248,12 +248,15 @@ class RepositoryDB(BaseRepositoryService):
         session = orm.sessionmaker(bind=self.engine)()
         try:
             return self._get_data_entry(dataset_id, data_entry_id, session)
+        except NoResultFound, e:
+            return None
         finally:
             session.close()
             
     def get_data_entry_stream(self, dataset_id, data_entry_id, attr):
         """Get a file stream for the data entry"""
         data_entry = self.get_data_entry(dataset_id, data_entry_id)
+        if data_entry == None: return None
         return open(data_entry[attr].f_path, "rb")
     
     def _get_data_entry(self, dataset_id, data_entry_id, session):
@@ -330,7 +333,7 @@ class RepositoryDB(BaseRepositoryService):
             s.flush()
             s.commit()
             
-            entry = DataEntryMetadataEntry(object_id=md.dataset, metadata_schema_id=md.schema, id=md.id)
+            entry = DataEntryMetadataEntry(object_id=md.data_entry, metadata_schema_id=md.schema, id=md.id)
             for attr in md.attrs:
                 if isinstance(schema.attrs[attr.name], FileDataType):
                     entry[attr.name] = FileObject(f_path=attr.value) 

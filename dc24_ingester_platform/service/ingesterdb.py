@@ -31,6 +31,7 @@ from jcudc24ingesterapi.ingester_exceptions import PersistenceError, \
     InvalidObjectError, StaleObjectError
 from sqlalchemy.types import TEXT
 import json
+from jcudc24ingesterapi import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -1040,6 +1041,8 @@ class IngesterServiceDB(IIngesterService):
     def persist_dataset_metadata(self, dataset_metadata, session, cwd):
         dataset_id = dataset_metadata.object_id
         dataset = self.get_dataset(dataset_id)
+        if dataset == None:
+            raise InvalidObjectError([ValidationError("dataset", "References non-existant dataset")])
         schema = self.get_schema(dataset_metadata.metadata_schema)
         return self.repo.persist_dataset_metadata(dataset, schema, dataset_metadata.data, cwd)
 
@@ -1048,6 +1051,8 @@ class IngesterServiceDB(IIngesterService):
         data_id = data_entry_metadata.object_id
         dataset_id = data_entry_metadata.dataset
         data_entry = self.get_data_entry(dataset_id, data_id)
+        if data_entry == None:
+            raise InvalidObjectError([ValidationError("data_entry", "References non-existant data entry")])
         schema = self.get_schema(data_entry_metadata.metadata_schema)
         return self.repo.persist_data_entry_metadata(data_entry, schema, data_entry_metadata.data, cwd)
 

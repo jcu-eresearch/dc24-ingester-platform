@@ -15,6 +15,7 @@ from twisted.web.resource import Resource
 from twisted.web.static import NoRangeStaticProducer
 from jcudc24ingesterapi.ingester_platform_api import Marshaller
 import traceback
+import inspect
 from jcudc24ingesterapi.ingester_exceptions import IngestPlatformError, InternalSystemError
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 def translate_exception(e):
     """Translate an IngestPlatformError into an XMLRPC Fault"""
     code = type(e).__xmlrpc_error__
-    msg = str(e)
+    msg = e.json() if hasattr(e, "json") and inspect.ismethod(e.json) else str(e) 
     return xmlrpc.Fault(code, msg)
 
 class ManagementService(xmlrpc.XMLRPC):
