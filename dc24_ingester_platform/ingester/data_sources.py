@@ -197,7 +197,7 @@ class PushDataSource(DataSource):
             shutil.move(os.path.join(self.path, f_name), os.path.join(cwd, new_filename))
             #timestamp = datetime.datetime.utcfromtimestamp(int(m.group(1)))
             new_data_entry = DataEntry(timestamp=timestamp)
-            new_data_entry[self.field] = FileObject(f_path=new_filename, mime_type="" )
+            new_data_entry[self.field] = FileObject(f_path=new_filename, file_name=f_name, mime_type="" )
             ret.append(new_data_entry)
         
         self.state["lasttime"] = format_timestamp(since) if since != None else None

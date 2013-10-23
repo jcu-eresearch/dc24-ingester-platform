@@ -252,7 +252,8 @@ def process(cwd, data_entry):
         self.todelete.append(staging)
         
         # Create a temp file to ingest
-        f = open(os.path.join(staging, str(int(time.time()))), "a")
+        f_name = str(int(time.time()))
+        f = open(os.path.join(staging, f_name), "a")
         f.close()
         
         # Check there is only 1 file here
@@ -260,7 +261,7 @@ def process(cwd, data_entry):
         
         dataset = Dataset()
         dataset.id = 1
-        dataset.data_source = PushDataSource(path=staging)
+        dataset.data_source = PushDataSource(path=staging, pattern='^(?P<timestamp>[0-9]+)$')
         
         self.ingester.enqueue_ingress(dataset)
         self.ingester.process_ingress_queue(True)
