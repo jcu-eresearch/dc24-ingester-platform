@@ -189,10 +189,12 @@ class PushDataSource(DataSource):
             timestamp = self.match_filename(f_name)
             if timestamp == None: continue
             
+            logger.debug("%s %s"%(str(timestamp),f_name))
+            
             new_filename = "file-"+f_name
             if self.archive != None:
                 shutil.copyfile(os.path.join(self.path, f_name), os.path.join(self.archive, f_name))
-            os.rename(os.path.join(self.path, f_name), os.path.join(cwd, new_filename))
+            shutil.move(os.path.join(self.path, f_name), os.path.join(cwd, new_filename))
             #timestamp = datetime.datetime.utcfromtimestamp(int(m.group(1)))
             new_data_entry = DataEntry(timestamp=timestamp)
             new_data_entry[self.field] = FileObject(f_path=new_filename, mime_type="" )

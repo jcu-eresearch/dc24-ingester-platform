@@ -115,7 +115,9 @@ class IngesterEngine(object):
                             json.dump(self.domain_marshaller.obj_to_dict(data_entries), f)
                         
                     else:
-                        entries_file = data_entries
+                        # Rename the output file to be consistent
+                        shutil.move(data_entries, os.path.join(cwd, "ingest.json"))
+                        entries_file = "ingest.json"
                     
                     # Now queue for ingest
                     self.enqueue_archive(task_id, entries_file, cwd)
@@ -190,9 +192,10 @@ class IngesterEngine(object):
             elif state == 1:
                 # State 1 is ready to ingest
                 try:
-                    with open(os.path.join(cwd, "ingest.json")) as f:
-                        entries = self.domain_marshaller.dict_to_obj(json.load(f))
-                        self.enqueue_ingest(task_id, entries, cwd)
+                    #with open(os.path.join(cwd, "ingest.json")) as f:
+                    #    entries = self.domain_marshaller.dict_to_obj(json.load(f))
+                    #    self.enqueue_archive(task_id, entries, cwd)
+                    self.enqueue_archive(task_id, "ingest.json", cwd)
                 except Exception as e:
                     logger.error("Error loading ingest task %d: %s"%(task_id, str(e)))
             else:
