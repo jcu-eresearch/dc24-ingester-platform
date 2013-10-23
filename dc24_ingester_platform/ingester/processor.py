@@ -22,7 +22,7 @@ def run_script(script, cwd, data_entry):
     an array of additional data entries, including the original
     data_entry that may have been altered.
     """
-    sb = create_sandbox(cwd)
+    #sb = create_sandbox(cwd)
     #return sb.call(_run_script, script, cwd, data_entry)
     return run_script_local(script, cwd, data_entry)
 

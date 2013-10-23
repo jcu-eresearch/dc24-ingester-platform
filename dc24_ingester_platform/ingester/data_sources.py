@@ -163,6 +163,7 @@ class PushDataSource(DataSource):
     the timestamp that should be on the record.
     """
     field = None # The field to ingest into
+    pattern = None #
 
     def fetch(self, cwd, service=None):
         """Scans a folder to find new files. The filenames are UTC timestamps that used
@@ -176,19 +177,80 @@ class PushDataSource(DataSource):
         if not os.path.exists(self.path):
             raise DataSourceError("Could not find the staging path")
         
-        RE_FILENAME = re.compile("^([0-9]+)$")
+        start_time = datetime.datetime.utcnow()
+        
+        # When the file should have been modified since
+        since = None
+        if "lasttime" in self.state and self.state["lasttime"] != None and len(self.state["lasttime"]) > 0:
+            since = calendar.timegm(parse_timestamp(self.state["lasttime"]).timetuple())
+        
         ret = []
         for f_name in os.listdir(self.path):
-            m = RE_FILENAME.match(f_name)
-            if m == None: continue
+            timestamp = self.match_filename(f_name)
+            if timestamp == None: continue
+            
             new_filename = "file-"+f_name
+            if self.archive != None:
+                shutil.copyfile(os.path.join(self.path, f_name), os.path.join(self.archive, f_name))
             os.rename(os.path.join(self.path, f_name), os.path.join(cwd, new_filename))
-            timestamp = datetime.datetime.utcfromtimestamp(int(m.group(1)))
+            #timestamp = datetime.datetime.utcfromtimestamp(int(m.group(1)))
             new_data_entry = DataEntry(timestamp=timestamp)
             new_data_entry[self.field] = FileObject(f_path=new_filename, mime_type="" )
             ret.append(new_data_entry)
+        
+        self.state["lasttime"] = format_timestamp(since) if since != None else None
             
         return ret
+    
+    def match_filename(self, f_name):
+        """Matches the filename and extracts whether the file should be ingested
+        and what its timestamp is.
+        
+        >>> import jcudc24ingesterapi.models.data_sources
+        >>> ds = PushDataSource({}, {}, jcudc24ingesterapi.models.data_sources.PushDataSource(pattern="^(?P<timestamp>[0-9]+)$"))
+        >>> ds.match_filename('1234567')
+        datetime.datetime(1970, 1, 15, 6, 56, 7)
+        >>> ds.match_filename('1234567xx')
+        
+        >>> ds = PushDataSource({}, {}, jcudc24ingesterapi.models.data_sources.PushDataSource(pattern="as-(?P<timestamp>[0-9]+)$"))
+        >>> print ds.pattern
+        as-(?P<timestamp>[0-9]+)$
+        >>> ds.match_filename('1234567')
+        
+        >>> ds.match_filename('as-1234567')
+        datetime.datetime(1970, 1, 15, 6, 56, 7)
+        
+        >>> ds = PushDataSource({}, {}, jcudc24ingesterapi.models.data_sources.PushDataSource(pattern="10-1__(?P<year>[0-9]{4})-(?P<month>[0-9]{2})-(?P<day>[0-9]{2})_(?P<hour>[0-9]{2})-(?P<minute>[0-9]{2})-(?P<second>[0-9\.]+)\.data$"))
+        >>> ds.match_filename('10-1__2013-07-29_19-08-29.565771.data')
+        datetime.datetime(2013, 7, 29, 19, 8, 29, 565771)
+        """
+        RE_FILENAME = re.compile(self.pattern)
+        m = RE_FILENAME.match(f_name)
+        # If nothing matches then return None
+        if m == None: return None
+        groups = m.groupdict()
+        
+        if 'timestamp' in groups:
+            return datetime.datetime.utcfromtimestamp(int(groups['timestamp']))
+        elif 'year' in groups or 'month' in groups or 'day' in groups or 'hour' in groups or 'minute' in groups or 'second' in groups:
+            timestamp = datetime.datetime.utcnow()
+            if 'year' in groups: 
+                timestamp = timestamp.replace(year = int(groups['year']))
+            if 'month' in groups: 
+                timestamp = timestamp.replace(month = int(groups['month']))
+            if 'day' in groups: 
+                timestamp = timestamp.replace(day = int(groups['day']))
+            if 'hour' in groups: 
+                timestamp = timestamp.replace(hour = int(groups['hour']))
+            if 'minute' in groups: 
+                timestamp = timestamp.replace(minute = int(groups['minute']))
+            if 'second' in groups: 
+                second = float(groups['second'])
+                microsecond = int((second - int(second)) * 1000000)
+                timestamp = timestamp.replace(second=int(second), microsecond=microsecond)
+            return timestamp
+        else:
+            return None
 
 class DatasetDataSource(DataSource):
     """Fetches data from a remote data source and returns its data entry.

@@ -37,7 +37,7 @@ class IngesterEngine(object):
         self.service.register_observation_listener(self)
         self.staging_dir = staging_dir
         if not os.path.exists(self.staging_dir): os.makedirs(self.staging_dir)
-        self._queue = Queue.Queue()
+        self._ingress_queue = Queue.Queue()
         self._archive_queue = Queue.Queue()
         self._data_source_factory = data_source_factory
         self.running = True
@@ -88,7 +88,7 @@ class IngesterEngine(object):
             if single_pass:
                 running = False
             try:
-                dataset, parameters, task_id, cwd = self._queue.get(True, 5)
+                dataset, parameters, task_id, cwd = self._ingress_queue.get(True, 5)
             except Queue.Empty:
                 # just loop, checking the running flag
                 continue
@@ -100,23 +100,25 @@ class IngesterEngine(object):
                 
                 data_entries = data_source.fetch(cwd, self.service)
                 
-                if hasattr(data_source, "processing_script") and data_source.processing_script != None:
-                    data_entries = run_script(data_source.processing_script, cwd, data_entries)
-                
-                if isinstance(data_entries, list):
-                    for entry in data_entries:
-                        entry.dataset = dataset.id
-                        
-                    # Write entries to disk so we can recover later
-                    entries_file = "ingest.json"
-                    with open(os.path.join(cwd, entries_file), "w") as f:
-                        json.dump(self.domain_marshaller.obj_to_dict(data_entries), f)
+                if len(data_entries) > 0:
+                    if hasattr(data_source, "processing_script") and data_source.processing_script != None:
+                        data_entries = run_script(data_source.processing_script, cwd, data_entries)
                     
-                else:
-                    entries_file = data_entries
-                
-                # Now queue for ingest
-                self.enqueue_archive(task_id, entries_file, cwd)
+                    # Store the entries as a file on disk so that it is persistent during restarts
+                    if isinstance(data_entries, list):
+                        for entry in data_entries:
+                            entry.dataset = dataset.id
+                            
+                        # Write entries to disk so we can recover later
+                        entries_file = "ingest.json"
+                        with open(os.path.join(cwd, entries_file), "w") as f:
+                            json.dump(self.domain_marshaller.obj_to_dict(data_entries), f)
+                        
+                    else:
+                        entries_file = data_entries
+                    
+                    # Now queue for ingest
+                    self.enqueue_archive(task_id, entries_file, cwd)
                 
                 self.service.persist_data_source_state(dataset.id, data_source.state)
                 self.service.mark_ingress_complete(task_id)
@@ -136,10 +138,13 @@ class IngesterEngine(object):
             if single_pass:
                 running = False
             try:
-                task_id, entries, cwd = self._archive_queue.get(True, 5)
+                task_id, entries_file, cwd = self._archive_queue.get(True, 5)
             except Queue.Empty:
                 continue
     
+            with open(os.path.join(cwd, entries_file), "r") as f:
+                entries = self.domain_marshaller.dict_to_obj(json.load(f))
+                
             for entry in entries:
                 self.service.persist(entry, cwd)
             # Cleanup
@@ -152,7 +157,7 @@ class IngesterEngine(object):
         in the persistent store, so that the queued entry can be cleaned up."""
         cwd = tempfile.mkdtemp(dir=self.staging_dir)
         task_id = self.service.create_ingest_task(dataset.id, cwd, parameters)
-        self._queue.put( (dataset, parameters, task_id, cwd) )
+        self._ingress_queue.put( (dataset, parameters, task_id, cwd) )
 
     def enqueue_archive(self, task_id, ingest_data, cwd):
         """Queue a data entry for ingest into the repository
@@ -172,7 +177,7 @@ class IngesterEngine(object):
         datasets = [ds for ds in datasets if ds.data_source.dataset_id==data_entry.dataset]
         logger.info("Notified of new observation, telling %d listeners"%(len(datasets)))
         for dataset in datasets:
-            self.enqueue(dataset, {"dataset":data_entry.dataset, "id":data_entry.id})
+            self.enqueue_ingress(dataset, {"dataset":data_entry.dataset, "id":data_entry.id})
         
     def restore_running(self):
         """Load any persisted ingress and archive tasks"""
@@ -181,7 +186,7 @@ class IngesterEngine(object):
         for task_id, state, dataset, parameters, cwd in items:
             if state == 0:
                 # State 0 is ready to ingress
-                self._queue.put( (dataset, parameters, task_id, cwd) )
+                self._ingress_queue.put( (dataset, parameters, task_id, cwd) )
             elif state == 1:
                 # State 1 is ready to ingest
                 try:

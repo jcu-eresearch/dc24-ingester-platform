@@ -4,7 +4,7 @@ custom scripts.
 """
 import os
 import sys
-import sandbox
+#import sandbox
 import unittest
 import datetime
 import shutil
@@ -106,6 +106,16 @@ class MockSourceCSV1(MockSource):
         
         return [data_entry]
 
+class DataEntryListener(object):
+    def __init__(self):
+        self._data_entries = []
+        
+    def notify_new_data_entry(self, obs, cwd):
+        self._data_entries.append(obs)
+        
+    def count(self):
+        return len(self._data_entries)
+
 class TestIngesterProcess(unittest.TestCase):
     def setUp(self):
         self.cwd = tempfile.mkdtemp()
@@ -129,6 +139,10 @@ class TestIngesterProcess(unittest.TestCase):
         
     def testBasicIngest(self):
         """This test performs a simple data ingest"""
+        # Capture the ingests
+        data_entries = DataEntryListener()
+        self.ingester.service.register_observation_listener(data_entries)
+        
         dataset = Dataset()
         dataset.id = 1
         datasource = _DataSource()
@@ -136,11 +150,16 @@ class TestIngesterProcess(unittest.TestCase):
         
         dataset.data_source = datasource
         
-        self.ingester.enqueue(dataset)
+        self.ingester.enqueue_ingress(dataset)
+        self.assertEquals(1, self.ingester._ingress_queue.qsize())
+        
         self.ingester.process_ingress_queue(True)
         
-        self.assertEquals(1, self.ingester._ingest_queue.qsize())
+        self.assertEquals(1, self.ingester._archive_queue.qsize())
         
+        self.ingester.process_archive_queue(True)
+        self.assertEquals(1, data_entries.count())
+    
     def testPostProcessScript(self):
         """This test performs a complex data ingest, where the main data goes into dataset 1 and 
         the extracted data goes into dataset 2"""
@@ -161,15 +180,21 @@ def process(cwd, data_entry):
             ret.append( new_data_entry )
     return ret
 """
+        # Capture the ingests
+        data_entries = DataEntryListener()
+        self.ingester.service.register_observation_listener(data_entries)
         
         dataset = Dataset(dataset_id=1)
         dataset.data_source = _DataSource(processing_script = script)
         dataset.data_source.__xmlrpc_class__ = "csv1"
         
-        self.ingester.enqueue( dataset )
+        self.ingester.enqueue_ingress( dataset )
         self.ingester.process_ingress_queue(True)
-        self.assertEquals(1, self.ingester._ingest_queue.qsize())
-        self.assertEquals(2, len(self.ingester._ingest_queue.get()[1]))
+        self.assertEquals(0, self.ingester._ingress_queue.qsize())
+        self.assertEquals(1, self.ingester._archive_queue.qsize())
+        self.ingester.process_archive_queue(True)
+        self.assertEquals(0, self.ingester._archive_queue.qsize())
+        self.assertEquals(2, data_entries.count())
         
         
     def testComplexIngest(self):
@@ -193,6 +218,10 @@ def process(cwd, data_entry):
     return ret
 """            
         
+        data_entries = DataEntryListener()
+        
+        self.ingester.service.register_observation_listener(data_entries)
+        
         dataset = Dataset(dataset_id=1, enabled=True)
         dataset.data_source = _DataSource()
         dataset.data_source.__xmlrpc_class__ = "csv1"
@@ -202,13 +231,14 @@ def process(cwd, data_entry):
         self.service.datasets[1] = dataset
         self.service.datasets[2] = dataset2
         
-        self.ingester.enqueue( dataset )
+        self.ingester.enqueue_ingress( dataset )
+        self.assertEquals(1, self.ingester._ingress_queue.qsize())
+        
         self.ingester.process_ingress_queue(True)
-        self.assertEquals(1, self.ingester._ingest_queue.qsize())
+        self.assertEquals(1, self.ingester._archive_queue.qsize())
+        self.ingester.process_archive_queue(True)
         
-        self.ingester.process_ingest_queue(True)
-        
-        self.assertEquals(1, self.ingester._queue.qsize(), "There should be one item from the notification")
+        self.assertEquals(1, data_entries.count())#, "There should be one item from the notification")
         
         # This should read the data that was copied over
 # FIXME probably the wrong place for this test as it requires a proper repo service
@@ -232,11 +262,10 @@ def process(cwd, data_entry):
         dataset.id = 1
         dataset.data_source = PushDataSource(path=staging)
         
-        self.ingester.enqueue(dataset)
+        self.ingester.enqueue_ingress(dataset)
         self.ingester.process_ingress_queue(True)
         
-        self.assertEquals(1, self.ingester._ingest_queue.qsize())
+        self.assertEquals(1, self.ingester._archive_queue.qsize())
         
         # Check there are now no files
         self.assertEquals(0, len(os.listdir(staging)))
-        
