@@ -449,16 +449,16 @@ def main_script():
     args = sys.argv
     if len(args) not in (4,):
         print "Usage: %s <entries file> <working directory> <script>" % (args[0])
-        print """Where config file contains:
+        print """Where entries file contains:
         [
-{'class': 'data_entry',
- 'data': {'file1': {'class': 'file_object',
-   'file_name': None,
-   'mime_type': None}},
- 'dataset': None,
- 'id': None,
- 'location_offset': None,
- 'timestamp': '2013-03-20T09:13:41.567Z'}
+{"class": "data_entry",
+ "data": {"file1": {"class": "file_object",
+   "file_name": null,
+   "mime_type": null}},
+ "dataset": null,
+ "id": null,
+ "location_offset": null,
+ "timestamp": "2013-03-20T09:13:41.567Z"}
         ]"""
         return(1)
     
