@@ -980,7 +980,7 @@ class IngesterServiceDB(IIngesterService):
             session.close()
 
     def find_schemas(self, repository_id=None, **kwargs):
-        """Find all datasets with the provided attributes"""
+        """Find all schemas matching the provided attributes"""
         session = orm.sessionmaker(bind=self.engine)()
         try:
             objs = session.query(Schema)
@@ -1070,6 +1070,11 @@ class IngesterServiceDB(IIngesterService):
                             offset=offset, limit=limit)
         elif isinstance(criteria, DatasetSearchCriteria):
             obj_type = Dataset
+            if criteria.location != None:
+                where.append(Dataset.location == criteria.location)
+            if criteria.schema != None:
+                where.append(Dataset.schema == criteria.schema)
+            
         elif isinstance(criteria, LocationSearchCriteria):
             obj_type = Location
         elif isinstance(criteria, DataEntrySchemaSearchCriteria):
