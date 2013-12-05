@@ -22,7 +22,7 @@ setup(name='jcu.dc24.ingesterplatform',
       zip_safe=False,
       install_requires=requires,
       entry_points={
-          "console_scripts": ["mgmt_client = dc24_ingester_platform.client:main",
+          "console_scripts": [
           "run_ingester = dc24_ingester_platform.ingester.data_sources:main_ingress",
           "run_script = dc24_ingester_platform.ingester.data_sources:main_script"]
       },

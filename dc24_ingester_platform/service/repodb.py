@@ -54,8 +54,8 @@ class DatasetMetadataAttr(Base):
     __tablename__ = "DATASET_METADATA_ATTRS"
     id = Column(Integer, primary_key=True)
     metadata_entry = Column(Integer, ForeignKey('DATASET_METADATA.id'))
-    name = Column(String)
-    value = Column(String)
+    name = Column(String(255))
+    value = Column(String(255))
     
 class Observation(Base):
     __tablename__ = "OBSERVATIONS"
@@ -68,8 +68,8 @@ class ObservationAttr(Base):
     __tablename__ = "OBSERVATION_ATTRS"
     id = Column(Integer, primary_key=True)
     observation = Column(Integer, ForeignKey('OBSERVATIONS.id'))
-    name = Column(String)
-    value = Column(String)
+    name = Column(String(255))
+    value = Column(String(255))
 
 class DataEntryMetadata(Base):
     __tablename__ = "DATA_ENTRY_METADATA"
@@ -82,8 +82,8 @@ class DataEntryMetadataAttr(Base):
     __tablename__ = "DATA_ENTRY_METADATA_ATTRS"
     id = Column(Integer, primary_key=True)
     metadata_entry = Column(Integer, ForeignKey('DATA_ENTRY_METADATA.id'))
-    name = Column(String)
-    value = Column(String)
+    name = Column(String(255))
+    value = Column(String(255))
     
 def merge_parameters(col_orig, col_new, klass, name_attr="name", value_attr="value"):
     """This method updates col_orig removing any that aren't in col_new, updating those that are, and adding new ones

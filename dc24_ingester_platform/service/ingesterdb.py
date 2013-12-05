@@ -44,7 +44,7 @@ class Region(Base):
     __xmlrpc_class__ = "region"
     id = Column(Integer, primary_key=True)
     version = Column(Integer, nullable=False, default=1)
-    name = Column(String)
+    name = Column(String(255))
     # parentRegions = orm.relationship("Region")
     region_points = orm.relationship("RegionPoint")
     
@@ -68,9 +68,9 @@ class Location(Base):
     version = Column(Integer, nullable=False, default=1)
     latitude = Column(DECIMAL)
     longitude = Column(DECIMAL)
-    name = Column(String)
+    name = Column(String(255))
     elevation = Column(DECIMAL)
-    repository_id = Column(String)
+    repository_id = Column(String(255))
     # region = orm.relationship("Region", uselist=False)
 
 class Dataset(Base):
@@ -83,9 +83,9 @@ class Dataset(Base):
     schema = Column(Integer, ForeignKey('SCHEMA.id'))
     enabled = Column(Boolean, default=True)
     running = Column(Boolean, default=False)
-    description = Column(String)
-    redbox_uri = Column(String)
-    repository_id = Column(String)
+    description = Column(String(255))
+    redbox_uri = Column(String(255))
+    repository_id = Column(String(255))
     # FIXME: Move to separate schema
     x = Column(DECIMAL)
     y = Column(DECIMAL)
@@ -96,15 +96,15 @@ class Sampling(Base):
     __tablename__ = "SAMPLING"
     __xmlrpc_class__ = "sampling"
     id = Column(Integer, primary_key=True)
-    kind = Column(String)
+    kind = Column(String(255))
     data_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))
     parameters = orm.relationship("SamplingParameter")
 
 class SamplingParameter(Base):
     __tablename__ = "SAMPLING_PARAMETERS"
     id = Column(Integer, primary_key=True)
-    name = Column(String)
-    value = Column(String)
+    name = Column(String(255))
+    value = Column(String(255))
     sampling_id = Column(Integer, ForeignKey("SAMPLING.id"))
     
 class DataSource(Base):
@@ -112,7 +112,7 @@ class DataSource(Base):
     __tablename__ = "DATA_SOURCES"
     __xmlrpc_class__ = "data_source"
     id = Column(Integer, primary_key=True)
-    kind = Column(String)
+    kind = Column(String(255))
     sampling = orm.relationship("Sampling", uselist=False)
     dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
     parameters = orm.relationship("DataSourceParameter")
@@ -121,8 +121,8 @@ class DataSource(Base):
 class DataSourceParameter(Base):
     __tablename__ = "DATA_SOURCE_PARAMETERS"
     id = Column(Integer, primary_key=True)
-    name = Column(String)
-    value = Column(String)
+    name = Column(String(255))
+    value = Column(String(255))
     dataset_source_id = Column(Integer, ForeignKey("DATA_SOURCES.id"))
 
 schema_to_schema = Table("schema_to_schema", Base.metadata,
@@ -135,10 +135,10 @@ class Schema(Base):
     __xmlrpc_class__ = "schema"
     id = Column(Integer, primary_key=True)
     version = Column(Integer, nullable=False, default=1)
-    name = Column(String)
-    for_ = Column(String, name="for")
+    name = Column(String(255))
+    for_ = Column(String(255), name="for")
     attributes = orm.relationship("SchemaAttribute")
-    repository_id = Column(String)
+    repository_id = Column(String(255))
     extends = relationship("Schema",
         secondary=schema_to_schema,
         primaryjoin=id == schema_to_schema.c.child_id,
@@ -147,10 +147,10 @@ class Schema(Base):
 class SchemaAttribute(Base):
     __tablename__ = "SCHEMA_ATTRIBUTE"
     id = Column(Integer, primary_key=True)
-    name = Column(String)
-    kind = Column(String)
-    units = Column(String)
-    description = Column(String)
+    name = Column(String(255))
+    kind = Column(String(255))
+    units = Column(String(255))
+    description = Column(String(255))
     schema_id = Column(Integer, ForeignKey("SCHEMA.id"))
 
 class IngesterLog(Base):
@@ -158,30 +158,30 @@ class IngesterLog(Base):
     __xmlrpc_class__ = "ingester_log"
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime)
-    level = Column(String)
-    message = Column(String)
+    level = Column(String(255))
+    message = Column(String(255))
     dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
 
 class SamplerState(Base):
     __tablename__ = "SAMPLER_STATE"
     id = Column(Integer, primary_key=True)
-    name = Column(String)
-    value = Column(String)
+    name = Column(String(255))
+    value = Column(String(255))
     dataset_id = Column(Integer, ForeignKey("DATASETS.id"))
  
 class DataSourceState(Base):
     __tablename__ = "DATA_SOURCE_STATE"
     id = Column(Integer, primary_key=True)
-    name = Column(String)
-    value = Column(String)
+    name = Column(String(255))
+    value = Column(String(255))
     dataset_id = Column(Integer, ForeignKey("DATASETS.id"))   
     
 class ObjectHistory(Base):
     __tablename__ = "OBJECT_HISTORY"
     id = Column(Integer, primary_key=True)
-    object = Column(String, nullable=False)
+    object = Column(String(255), nullable=False)
     object_id = Column(Integer, nullable=False)
-    version = Column(String, nullable=False)
+    version = Column(String(255), nullable=False)
     data = Column(TEXT)
     timestamp = Column(DateTime)
     
@@ -192,7 +192,7 @@ class IngesterTask(Base):
     dataset = orm.relationship("Dataset", uselist=False)
     timestamp = Column(DateTime)
     state = Column(Integer, nullable=False, default=0)
-    cwd = Column(String, nullable=False)
+    cwd = Column(String(255), nullable=False)
     parameters = Column(TEXT)
     
 def merge_parameters(src, dst, klass, name_attr="name", value_attr="value", ignore_props=[]):
