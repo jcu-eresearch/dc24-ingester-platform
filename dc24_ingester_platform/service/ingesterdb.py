@@ -782,6 +782,18 @@ class IngesterServiceDB(IIngesterService):
         finally:
             session.close()
     
+    def mark_ingest_failed(self, ingest_task_id):
+        """If the ingest fails then mark it as such"""
+        session = orm.sessionmaker(bind=self.engine)()
+        try:
+            task = session.query(IngesterTask).filter(IngesterTask.id == ingest_task_id).one()
+            task.state = 3
+            session.merge(task)
+            
+            session.commit()
+        finally:
+            session.close()
+
     def get_ingest_queue(self):
         """Get all the items queued for ingest.
         :returns: List of tuples (task_id, state, dataset object, parameter dict, cwd)

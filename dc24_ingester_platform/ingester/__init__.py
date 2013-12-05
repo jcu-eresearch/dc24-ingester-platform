@@ -143,15 +143,18 @@ class IngesterEngine(object):
                 task_id, entries_file, cwd = self._archive_queue.get(True, 5)
             except Queue.Empty:
                 continue
-    
-            with open(os.path.join(cwd, entries_file), "r") as f:
-                entries = self.domain_marshaller.dict_to_obj(json.load(f))
-                
-            for entry in entries:
-                self.service.persist(entry, cwd)
-            # Cleanup
-            self.service.mark_ingest_complete(task_id)
-            shutil.rmtree(cwd)
+            try: 
+                with open(os.path.join(cwd, entries_file), "r") as f:
+                    entries = self.domain_marshaller.dict_to_obj(json.load(f))
+                    
+                for entry in entries:
+                    self.service.persist(entry, cwd)
+                # Cleanup
+                self.service.mark_ingest_complete(task_id)
+                shutil.rmtree(cwd)
+            except Exception, e:
+                logger.error("Error while archiving %d %s, not cleaning it up: %s"%(task_id, entries_file, str(e)))
+                self.service.mark_ingest_failed(task_id)
   
     def enqueue_ingress(self, dataset, parameters=None):
         """Enqueue the dataset for ingress and processing ASAP. The markRunning method
